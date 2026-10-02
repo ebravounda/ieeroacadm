@@ -67,6 +67,7 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - 2026-10-02: Mass messaging (/mensajes, backend/messaging.py): templates CRUD with 4 seeded defaults, variables, [texto](url) links, audiences, preview/test/send background, history. Tested iteration_10 100%.
 - 2026-10-02: SEO/social: index.html lang es-CL, title/description/keywords, canonical, geo, OG + Twitter (og-image.jpg 1200x630 generated), JSON-LD EducationalOrganization+WebSite, favicons/manifest, robots.txt, sitemap.xml, noscript content. New definitive Resend key provided by customer (validated) — set only on server .env/Integraciones, never in repo.
 - 2026-10-02: Admin can edit student nombre/apellidos/RUT (Students.jsx EditUserDialog; PUT /api/users/{id} trims + requires nombre).
+- 2026-10-02: Module sections: ModuleIn.sections [{id,title,description}], Material.section_id + type 'presentacion'; video accepts URL or uploaded MP4. SectionsEditor (Materials.jsx) with add/rename/reorder/delete; student ModuleView collapsible sections w/ per-section progress, any order. Legacy modules → single "Contenidos" section. Tested iteration_12: 100%.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
