@@ -239,6 +239,42 @@ def class_reminder_html(name, title, course, hora, platform) -> str:
     )
 
 
+def welcome_email_html(name, email, course, n_modules, hours, login_url) -> str:
+    li = lambda t: f'<li style="margin:0 0 8px">{t}</li>'
+    btn = (f'<p style="margin:20px 0"><a href="{escape(login_url)}" style="background:#11305c;color:#fff;padding:12px 22px;'
+           'border-radius:8px;text-decoration:none;font-weight:bold">Ingresar a mi curso</a></p>') if login_url else ""
+    info = f"{n_modules} módulos" + (f" · {hours} horas" if hours else "")
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a;line-height:1.55">'
+        f'{_brand()}'
+        f'<p style="font-size:20px;font-weight:bold;color:#11305c;margin:0 0 8px">¡Bienvenido(a), {escape(name)}!</p>'
+        f'<p>Te damos la más cordial bienvenida a <b>{escape(EMAIL_FROM_NAME)}</b>. Ya estás matriculado(a) en el curso:</p>'
+        f'<p style="font-size:18px;font-weight:bold;margin:8px 0">{escape(course)}</p><p style="color:#475569;margin:0">{info}</p>'
+        '<div style="background:#f1f5f9;border-radius:10px;padding:16px;margin:18px 0">'
+        '<p style="margin:0 0 6px;font-weight:bold">Tus credenciales de acceso</p>'
+        f'<p style="margin:0">Usuario: <b>{escape(email)}</b><br>Acceso: con tu correo y un código de 6 dígitos que te enviaremos '
+        'cada vez que ingreses (no necesitas contraseña).</p>'
+        + (f'<p style="margin:6px 0 0">Plataforma: {escape(login_url)}</p>' if login_url else "") + '</div>'
+        f'{btn}'
+        '<p style="font-weight:bold;margin:18px 0 8px">Para aprovechar al máximo tu curso</p><ul style="padding-left:20px;margin:0">'
+        + li("Sé meticuloso(a): dedica tiempo de calidad a cada módulo y revisa con atención todos sus contenidos y materiales.")
+        + li("Avanza en orden: los módulos se desbloquean uno a uno a medida que apruebas el anterior.")
+        + li("Al finalizar cada módulo debes rendir un <b>examen</b>. Debes aprobarlo para continuar; si no lo apruebas, "
+             "deberás repasar el módulo antes de volver a intentarlo.")
+        + li("Algunos módulos exigen un <b>tiempo mínimo de estudio</b> antes de habilitar la evaluación.")
+        + li("Al completar todos los módulos rendirás el <b>examen final</b> y, si apruebas, recibirás tu certificado con código QR verificable.")
+        + '</ul>'
+        '<p style="background:#fff8e6;border-left:4px solid #11305c;padding:12px;margin:18px 0">'
+        '<b>Importante:</b> la plataforma registra tus ingresos, el tiempo de conexión y el tiempo en que completas cada módulo. '
+        'Esta información forma parte de tu evaluación y del reporte de asistencia del curso, por lo que te pedimos estudiar con constancia '
+        'y responder tus evaluaciones de forma personal.</p>'
+        '<p>Te deseamos mucho éxito en este proceso de aprendizaje. Ante cualquier duda, responde a este correo.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
+
 def inactivity_email_html(name, days, course, progress, next_step) -> str:
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'

@@ -188,7 +188,21 @@ async def enroll(user_id, course_id, method):
            "completed_modules": [], "final_passed": False, "completed_at": None}
     await db.enrollments.insert_one(doc)
     doc.pop("_id", None)
+    asyncio.create_task(send_welcome(user_id, course_id))
     return doc
+
+
+async def send_welcome(user_id, course_id):
+    try:
+        u = await db.users.find_one({"id": user_id}, {"_id": 0})
+        c = await db.courses.find_one({"id": course_id}, {"_id": 0})
+        n = await db.modules.count_documents({"course_id": course_id})
+        base = core.PUBLIC_BASE if core.PUBLIC_BASE.startswith("https://") else ""
+        html = core.welcome_email_html(u.get("nombre") or u["email"], u["email"], c["title"], n, c.get("hours"),
+                                       f"{base}/login" if base else "")
+        await send_email(to=u["email"], subject=f"Bienvenido(a) a {c['title']} – {EMAIL_FROM_NAME}", html=html)
+    except Exception as e:
+        logger.error(f"Welcome email failed: {e}")
 
 
 async def auto_enroll(user_id):

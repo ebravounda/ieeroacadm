@@ -33,10 +33,10 @@ DB_NAME=iberoacademy
 CORS_ORIGINS=https://$DOM,https://www.$DOM
 JWT_SECRET=$(python3 -c "import secrets;print(secrets.token_urlsafe(48))")
 WEBHOOK_CRON_SECRET=$(python3 -c "import secrets;print(secrets.token_urlsafe(32))")
-ADMIN_EMAIL=ed0.2580@gmail.com
+ADMIN_EMAIL=info@$DOM
 EMAIL_FROM_NAME=IberoAcademy
 RESEND_API_KEY=re_PEGA_TU_CLAVE
-MAIL_FROM=no-reply@$DOM
+MAIL_FROM=info@$DOM
 LOCAL_STORAGE_DIR=$APP/storage
 ENVF
 fi
