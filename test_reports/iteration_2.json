@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 2 (IberoAcademy) backend + frontend testing. 13/13 new iteration-2 pytest tests pass and 20/20 non-OTP regression tests pass (OTP email tests deselected to avoid Resend rate limit; functionality covered via JWT minting). New-feature coverage: default pass_score=75, file upload/download via /api/files (incl. ?auth= query param), task-complete gating module exam, fail exam resets completed_tasks and re-locks exam while next module stays locked, pass module exam unlocks next module with Chilean nota (75%->4.0, 100%->7.0, 50%@E=50 border->4.0), multiple-selection graded only on exact set match, open-question submission -> status en_revision + student cannot resubmit + staff grade endpoint flips to calificada and applies pass/fail, final exam locked until all module exams passed, diploma issued with nota_final = overall_nota (avg of modules_avg and final), analytics /analytics/students exposes avg_nota, EMAIL_FROM_NAME=IberoAcademy, APP_NAME=iberoacademy in object storage path. Also minor regression fix: iteration-1 test fixture updated to use 2 single-type (mc legacy) questions since the previous `open` question now goes to en_revision rather than auto-grade (not a bug, intended behavior). Frontend smoke test as admin: Login page shows 'IberoAcademy' branding; sidebar shows IberoAcademy; Submissions page shows 'Por corregir' badge for en_revision subs; Analytics shows 'Nota prom.' column with Chilean notas (7,0 / 4,0 / 1,0 displayed); Courses page lists i2 courses correctly; public /verificar/INVALID999 shows 'no válido'. No console errors beyond expected 401s on unauthenticated page load.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/iteration2.xml",
+    "/app/test_reports/pytest/all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 996 lines; consider splitting by domain (auth, courses, modules/submissions, live, files, analytics) for maintainability.",
+    "GET /api/files/{id} downloads the full binary into memory via asyncio.to_thread(get_object, ...). For large files (up to 100 MB allowed) this blocks a worker and consumes memory per request; consider streaming via httpx AsyncClient with StreamingResponse.",
+    "Question model allows legacy type 'mc' but it's silently rewritten to 'single' in strip_answers/auto_grade. OK as backward compat, but add a short docstring/comment to make this explicit.",
+    "In apply_result, when a module exam is failed we blank completed_tasks for that module (correct per spec), but any previously stored module_results[mid] from an earlier passed attempt is not cleared. Edge-case: not reachable today because /modules/{id}/submit rejects if module_id already in completed_modules — still worth documenting.",
+    "Final exam uses course.final_exam.pass_score as the exigencia for all module notas in course_grades(). Spec says each module has its own pass_score; current UI shows per-module nota using m.quiz.pass_score (correct), but modules_avg_nota and overall_nota use the FINAL exam pass_score as exigencia for the average — this is an opinionated choice; consider documenting or using a fixed 60 / per-module avg.",
+    "No endpoint to delete uploaded files once a material referencing it is removed — potential orphan files in object storage.",
+    "accessible_module re-fetches all modules and runs module_status on every quiz load; fine for small courses but could be cached per request."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": { "backend": "100% (33/33 run)", "frontend": "100% of smoke-tested flows" },
+  "test_credentials": "Admin: delivered+admin@resend.dev (id test-admin-1, role admin). Mint JWT via /app/backend .env JWT_SECRET for direct API/UI auth. OTP tests deselected in CI run; already covered in iteration 1.",
+  "seed_data_creation": "Iteration-2 suite creates: TEST_Ibero_i2 course (2 modules + final), TEST_i2_open course (1 open-only module), TEST_border_course (ephemeral; deleted). ~10 TEST_* students (border, fail1, pass1, mpart, fin2, openst, tgate, tdone, etc.). 1 uploaded file in object storage (TEST_task.txt, 17 bytes). 1 diploma issued for TEST_fin2 Student.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Two pytest files now: backend/tests/backend_test.py (iteration 1 regression, 25 tests; 22 run without OTP ones) and backend/tests/test_iteration2.py (13 tests, no OTP). Both share JWT_SECRET from backend/.env and admin delivered+admin@resend.dev. Run with: pytest backend/tests -v -n 0 -k 'not test_login_full_flow and not test_wrong_code_rejected and not test_self_register_auto_enroll'. The TestDefaults.test_branding_from_name test reads EMAIL_FROM_NAME from /app/backend/.env rather than /api/settings because the regression TestSettings test overrides otec_name to 'TEST_OTEC' and the two files share DB state. Chilean nota formula verified: pct<E -> 1+3*pct/E; pct>=E -> 4+3*(pct-E)/(100-E); 100% -> 7.0 regardless of E. Open-question auto_grade returns None for non-empty answers -> score_of returns None -> status en_revision; empty open answer scores 0.",
+  "rca of the issue": "N/A — no bugs found. The two regression failures encountered were obsolete iteration-1 test expectations (open answer -> auto-pass 100%) that no longer hold under the new grading model. Updated the regression fixture to use 2 single-type (mc legacy) questions."
+}

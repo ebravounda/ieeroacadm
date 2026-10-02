@@ -76,14 +76,6 @@ def auth_h(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def auth_h(token):
-    return {"Authorization": f"Bearer {token}"}
-
-
-def auth_h(token):
-    return {"Authorization": f"Bearer {token}"}
-
-
 def make_student(admin_token, label, course_id=None):
     """Create a student via admin API (no email), optionally enroll. Returns (user, token)."""
     email = f"delivered+{label}{int(time.time()*1000) % 1000000}@resend.dev"
@@ -216,7 +208,7 @@ def modules_setup(admin_token, test_course):
         "title": "TEST_Modulo1", "content": "Contenido 1",
         "quiz": {"pass_score": 60, "questions": [
             {"id": "q1", "type": "mc", "text": "2+2?", "options": ["3", "4", "5"], "correct": 1},
-            {"id": "q2", "type": "open", "text": "Explica brevemente", "options": [], "correct": None}]}})
+            {"id": "q2", "type": "mc", "text": "Capital?", "options": ["Santiago", "Lima"], "correct": 0}]}})
     assert r.status_code == 200, r.text
     m1 = r.json()
     # Module 2 with simple MC quiz
@@ -258,7 +250,7 @@ class TestCoursesModules:
         # Submit module 1 with correct answers
         r = requests.post(f"{API}/modules/{modules_setup['m1']['id']}/submit",
                           headers=auth_h(tok),
-                          json={"answers": {"q1": "1", "q2": "Mi respuesta extensa"},
+                          json={"answers": {"q1": "1", "q2": "0"},
                                 "tab_switches": 0, "paste_events": 0, "duration_sec": 60})
         assert r.status_code == 200, r.text
         data = r.json()
@@ -275,7 +267,7 @@ class TestCoursesModules:
         assert r.status_code == 403
         # Complete modules
         requests.post(f"{API}/modules/{modules_setup['m1']['id']}/submit", headers=auth_h(tok),
-                      json={"answers": {"q1": "1", "q2": "ok"}, "duration_sec": 10,
+                      json={"answers": {"q1": "1", "q2": "0"}, "duration_sec": 10,
                             "tab_switches": 0, "paste_events": 0})
         requests.post(f"{API}/modules/{modules_setup['m2']['id']}/submit", headers=auth_h(tok),
                       json={"answers": {"q1": "0"}, "duration_sec": 10,

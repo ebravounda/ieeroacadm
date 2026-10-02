@@ -1,0 +1,41 @@
+# PRD – IberoAcademy (iberoacademy.cl)
+
+## Original problem statement
+necesito crear una plataforma para un centro educativo La plataforma tendra esto:
+- ingreso y matriculación automatizada y manual de estudiantes.
+- control de asistencia a la plataforma del estudiante
+- control de permanencia en la plataforma
+- analisis de uso de IA para la resolución de examenes
+- analítica de acceso y progreso de alumnos
+- gestion de modulos y ramos en la plataforma
+- avance de curso modular (para acceder al siguiente modulo debe completar el modulo de manera asincrónica.
+- clases en vivo (con teams y google meets)
+- evaluaciones por modulo
+- evaluación final de cada curso
+- diploma curso finalizado con nombre y apellidos del estudiante mas codigo qr de verificación del diploma firma del rector y vicerrector de la otec
+
+Follow-up: la web se llama iberoacademy.cl; módulos 1,2,3 secuenciales; profesor rellena módulo con texto, videos, imágenes, PPT, PDF; examen por módulo (alternativas, selección múltiple, desarrollo) con % de aprobación configurable (default 75%); si reprueba repite las tareas; promedio = promedio % módulos promediado con examen final; notas chilenas 1-7; examen final requiere todos los módulos aprobados.
+
+User choices: login con código al email; IA con Claude; Teams/Meet por enlace con botón "Abrir clase" en vivo; firmas PNG.
+
+## Architecture
+- FastAPI (`backend/server.py`, `backend/core.py`) + MongoDB + React (CRA, shadcn).
+- Auth: passwordless OTP via Emergent-managed Resend → JWT (cookie + bearer/localStorage; `?auth=` for files).
+- AI detection: Claude `claude-sonnet-5-5` via emergentintegrations (background task per submission).
+- Files: Emergent object storage (`/api/files`).
+- Roles: admin, docente, estudiante.
+
+## Implemented (2026-10-02)
+- OTP login, self-registration (auto-enroll), manual enrollment, CSV bulk import.
+- Courses/modules CRUD, materials-as-tasks (texto/video/archivo/enlace), sequential unlocking.
+- Module exams (single/multiple/open), default 75%, fail → tasks reset; open answers → teacher grading.
+- Chilean grades 1.0–7.0 (exigencia = pass %), course final = avg(modules avg %, final %).
+- Final exam gated; diploma with QR, nota final, rector/vicerrector PNG signatures; public /verificar/:code.
+- Heartbeat attendance/permanence, analytics overview + per-student table + CSV export.
+- Live classes (Teams/Meet link, live status, attendance on join).
+- Claude AI-usage % per submission + behavior signals (tab switches, paste, time).
+
+## Backlog
+- P1: Office viewer for PPT inline preview; email notification when teacher grades.
+- P1: Per-teacher course ownership restrictions.
+- P2: Attendance reports per live class export; certificate PDF generation server-side.
