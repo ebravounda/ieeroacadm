@@ -66,6 +66,7 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - 2026-10-02: LIVE on customer server https://iberoacademy.cl (verified externally: landing, login, /api). instalar.sh ran OK.
 - 2026-10-02: Mass messaging (/mensajes, backend/messaging.py): templates CRUD with 4 seeded defaults, variables, [texto](url) links, audiences, preview/test/send background, history. Tested iteration_10 100%.
 - 2026-10-02: SEO/social: index.html lang es-CL, title/description/keywords, canonical, geo, OG + Twitter (og-image.jpg 1200x630 generated), JSON-LD EducationalOrganization+WebSite, favicons/manifest, robots.txt, sitemap.xml, noscript content. New definitive Resend key provided by customer (validated) — set only on server .env/Integraciones, never in repo.
+- 2026-10-02: Admin can edit student nombre/apellidos/RUT (Students.jsx EditUserDialog; PUT /api/users/{id} trims + requires nombre).
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
