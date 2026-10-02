@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Download } from "lucide-react";
-import { api, fmtDate } from "@/lib/api";
+import { api, fmtDate, fmtNota } from "@/lib/api";
 import { PageHeader, AiBadge } from "@/components/Common";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const COLS = ["nombre", "apellidos", "email", "rut", "last_login", "logins", "days_attended", "total_minutes", "courses", "progress", "avg_score", "ai_avg"];
+const COLS = ["nombre", "apellidos", "email", "rut", "last_login", "logins", "days_attended", "total_minutes", "courses", "progress", "avg_score", "avg_nota", "ai_avg"];
 
 function exportCsv(rows) {
   const csv = [COLS.join(","), ...rows.map((r) => COLS.map((c) => `"${r[c] ?? ""}"`).join(","))].join("\n");
@@ -34,7 +34,7 @@ export default function Analytics() {
           <TableHeader><TableRow>
             <TableHead>Estudiante</TableHead><TableHead>Último acceso</TableHead><TableHead className="text-right">Ingresos</TableHead>
             <TableHead className="text-right">Días asistidos</TableHead><TableHead className="text-right">Permanencia</TableHead>
-            <TableHead>Avance</TableHead><TableHead className="text-right">Nota prom.</TableHead><TableHead>Uso IA</TableHead>
+            <TableHead>Avance</TableHead><TableHead className="text-right">Logro prom.</TableHead><TableHead className="text-right">Nota prom.</TableHead><TableHead>Uso IA</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {list.map((r) => (
@@ -45,7 +45,8 @@ export default function Analytics() {
                 <TableCell className="text-right font-mono">{r.days_attended}</TableCell>
                 <TableCell className="text-right font-mono">{r.total_minutes} min</TableCell>
                 <TableCell className="min-w-[120px]"><Progress value={r.progress} className="h-2" /><span className="text-xs text-slate-500">{r.progress}% · {r.courses} cursos</span></TableCell>
-                <TableCell className="text-right font-mono">{r.avg_score ?? "—"}</TableCell>
+                <TableCell className="text-right font-mono">{r.avg_score ?? "—"}{r.avg_score != null && "%"}</TableCell>
+                <TableCell className="text-right font-mono font-semibold" data-testid={`analytics-nota-${r.id}`}>{fmtNota(r.avg_nota)}</TableCell>
                 <TableCell><AiBadge value={r.ai_avg} /></TableCell>
               </TableRow>
             ))}

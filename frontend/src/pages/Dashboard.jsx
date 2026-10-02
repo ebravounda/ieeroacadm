@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Users, BookOpen, Award, Activity, Bot, AlertTriangle, PlayCircle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import { api, errMsg } from "@/lib/api";
+import { api, errMsg, fmtNota } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, StatCard, Empty } from "@/components/Common";
 import { Progress } from "@/components/ui/progress";
@@ -60,7 +60,8 @@ function CourseCard({ c }) {
       <p className="text-sm text-slate-500 mt-1 line-clamp-2">{c.description}</p>
       <div className="mt-5 flex justify-between text-xs text-slate-500 mb-1.5"><span>{c.completed_count}/{c.module_count} módulos</span><span>{c.progress}%</span></div>
       <Progress value={c.progress} className="h-2" />
-      {c.final_passed && <p className="mt-3 text-xs font-semibold text-emerald-700 flex items-center gap-1"><Award size={14} /> Curso aprobado</p>}
+      {c.final_passed && <p className="mt-3 text-xs font-semibold text-emerald-700 flex items-center gap-1"><Award size={14} /> Curso aprobado · Nota {fmtNota(c.grades?.overall_nota)}</p>}
+      {!c.final_passed && c.grades?.modules_avg_nota && <p className="mt-3 text-xs text-slate-500">Promedio módulos: <b>{fmtNota(c.grades.modules_avg_nota)}</b></p>}
     </Link>
   );
 }

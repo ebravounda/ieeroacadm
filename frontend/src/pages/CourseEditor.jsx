@@ -6,6 +6,7 @@ import { api, errMsg, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
 import QuizBuilder from "@/components/QuizBuilder";
+import { MaterialsEditor } from "@/components/Materials";
 import { CourseForm } from "@/pages/Courses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +16,11 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const EMPTY_MODULE = { title: "", description: "", content: "", video_url: "", quiz: { questions: [], pass_score: 60 } };
+const EMPTY_MODULE = { title: "", description: "", content: "", video_url: "", materials: [], quiz: { questions: [], pass_score: 75 } };
 
 function ModuleDialog({ open, onClose, initial, onSave }) {
   const [m, setM] = useState(EMPTY_MODULE);
-  useEffect(() => { if (open) setM(initial || EMPTY_MODULE); }, [open, initial]);
+  useEffect(() => { if (open) setM(initial ? { ...EMPTY_MODULE, ...initial, materials: initial.materials || [] } : EMPTY_MODULE); }, [open, initial]);
   const set = (k) => (e) => setM({ ...m, [k]: e.target.value });
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -28,10 +29,12 @@ function ModuleDialog({ open, onClose, initial, onSave }) {
         <div className="space-y-3">
           <div><Label>Título</Label><Input value={m.title} onChange={set("title")} data-testid="module-title-input" /></div>
           <div><Label>Descripción breve</Label><Input value={m.description} onChange={set("description")} data-testid="module-description-input" /></div>
-          <div><Label>Contenido (asincrónico)</Label><Textarea rows={6} value={m.content} onChange={set("content")} data-testid="module-content-input" /></div>
-          <div><Label>Video (URL de YouTube/Vimeo, opcional)</Label><Input value={m.video_url} onChange={set("video_url")} data-testid="module-video-input" /></div>
-          <h4 className="font-semibold pt-3">Evaluación del módulo</h4>
-          <p className="text-xs text-slate-500 -mt-2">Si no agregas preguntas, el estudiante completa el módulo marcándolo como leído.</p>
+          <div><Label>Introducción del módulo</Label><Textarea rows={4} value={m.content} onChange={set("content")} data-testid="module-content-input" /></div>
+          <h4 className="font-semibold pt-3">Material y tareas del módulo</h4>
+          <p className="text-xs text-slate-500 -mt-2">Lecturas, videos, presentaciones PPT, PDF, imágenes o enlaces. El estudiante debe completar todas las tareas para rendir el examen.</p>
+          <MaterialsEditor materials={m.materials} onChange={(materials) => setM({ ...m, materials })} />
+          <h4 className="font-semibold pt-3">Examen del módulo</h4>
+          <p className="text-xs text-slate-500 -mt-2">Si el estudiante reprueba, debe repetir las tareas del módulo. Sin preguntas, el módulo se completa al terminar las tareas.</p>
           <QuizBuilder quiz={m.quiz} onChange={(quiz) => setM({ ...m, quiz })} prefix="module" />
           <Button className="w-full" disabled={!m.title} onClick={() => onSave(m)} data-testid="module-save-button">Guardar módulo</Button>
         </div>
@@ -57,7 +60,7 @@ function ModulesTab({ course, reload }) {
           <span className="h-10 w-10 rounded-lg bg-teal-50 text-teal-700 font-heading font-bold grid place-items-center">{i + 1}</span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold">{m.title}</p>
-            <p className="text-xs text-slate-500">{m.quiz?.questions?.length || 0} preguntas · {i > 0 && <><Lock size={10} className="inline" /> requiere módulo {i}</>}</p>
+            <p className="text-xs text-slate-500">{m.materials?.length || 0} tareas · {m.quiz?.questions?.length || 0} preguntas · aprobación {m.quiz?.pass_score ?? 75}% {i > 0 && <>· <Lock size={10} className="inline" /> requiere módulo {i}</>}</p>
           </div>
           <Button size="icon" variant="ghost" onClick={() => setEditing(m)} data-testid={`edit-module-${i}`}><Pencil size={16} /></Button>
           <Button size="icon" variant="ghost" onClick={() => del(m.id)} data-testid={`delete-module-${i}`}><Trash2 size={16} /></Button>
@@ -74,7 +77,7 @@ function FinalExamTab({ course }) {
   const save = () => api.put(`/courses/${course.id}/final-exam`, quiz).then(() => toast.success("Evaluación final guardada")).catch((e) => toast.error(errMsg(e)));
   return (
     <div className="bg-white border rounded-xl p-6 space-y-4">
-      <p className="text-sm text-slate-500">Se habilita cuando el estudiante completa todos los módulos. Al aprobarla se emite el diploma automáticamente.</p>
+      <p className="text-sm text-slate-500">Se habilita cuando el estudiante aprueba todos los exámenes de módulo. Nota final del curso = promedio entre el promedio de los módulos y el examen final (escala 1,0 a 7,0). Al aprobarla se emite el diploma.</p>
       <QuizBuilder quiz={quiz} onChange={setQuiz} prefix="final" />
       <Button onClick={save} data-testid="final-exam-save-button">Guardar evaluación final</Button>
     </div>

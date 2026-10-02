@@ -7,12 +7,13 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Optional, Literal
 
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Request, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Request, BackgroundTasks, UploadFile, File
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
-                  send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME)
+                  send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
+                  get_object, to_nota, APP_NAME)
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -67,15 +68,27 @@ class ImportIn(BaseModel):
 
 class Question(BaseModel):
     id: str = Field(default_factory=new_id)
-    type: Literal["mc", "open"] = "mc"
+    type: Literal["single", "multiple", "open", "mc"] = "single"
     text: str
     options: List[str] = []
     correct: Optional[int] = None
+    correct_multi: List[int] = []
 
 
 class Quiz(BaseModel):
     questions: List[Question] = []
-    pass_score: int = 60
+    pass_score: int = 75
+
+
+class Material(BaseModel):
+    id: str = Field(default_factory=new_id)
+    type: Literal["texto", "video", "archivo", "enlace"]
+    title: str
+    body: str = ""
+    url: str = ""
+    file_id: str = ""
+    file_name: str = ""
+    content_type: str = ""
 
 
 class CourseIn(BaseModel):
@@ -93,7 +106,13 @@ class ModuleIn(BaseModel):
     content: str = ""
     video_url: str = ""
     order: Optional[int] = None
+    materials: List[Material] = []
     quiz: Quiz = Quiz()
+
+
+class GradeIn(BaseModel):
+    grades: dict
+    feedback: str = ""
 
 
 class EnrollIn(BaseModel):
@@ -163,19 +182,55 @@ async def get_modules(course_id):
 
 
 def strip_answers(quiz):
-    qs = [{k: v for k, v in q.items() if k != "correct"} for q in (quiz or {}).get("questions", [])]
-    return {"questions": qs, "pass_score": (quiz or {}).get("pass_score", 60)}
+    qs = [{k: v for k, v in q.items() if k not in ("correct", "correct_multi")} for q in (quiz or {}).get("questions", [])]
+    for q in qs:
+        if q["type"] == "mc":
+            q["type"] = "single"
+    return {"questions": qs, "pass_score": (quiz or {}).get("pass_score", 75)}
 
 
-def grade(quiz, answers):
-    qs = quiz.get("questions", [])
-    mc = [q for q in qs if q["type"] == "mc"]
-    opens = [q for q in qs if q["type"] == "open"]
-    correct = sum(1 for q in mc if str(answers.get(q["id"])) == str(q.get("correct")))
-    open_ok = all(str(answers.get(q["id"], "")).strip() for q in opens)
-    score = round(correct / len(mc) * 100) if mc else (100 if open_ok else 0)
-    passed = score >= quiz.get("pass_score", 60) and open_ok
-    return score, passed
+def auto_grade(quiz, answers):
+    res = {}
+    for q in quiz.get("questions", []):
+        a = answers.get(q["id"])
+        kind = "single" if q["type"] == "mc" else q["type"]
+        if kind == "single":
+            res[q["id"]] = 100 if a is not None and str(a) == str(q.get("correct")) else 0
+        elif kind == "multiple":
+            chosen = sorted(int(x) for x in (a or []) if str(x).lstrip("-").isdigit())
+            res[q["id"]] = 100 if chosen and chosen == sorted(q.get("correct_multi") or []) else 0
+        else:
+            res[q["id"]] = None if str(a or "").strip() else 0
+    return res
+
+
+def score_of(results):
+    if not results or any(v is None for v in results.values()):
+        return None
+    return round(sum(results.values()) / len(results))
+
+
+def module_tasks_done(m, e):
+    done = set((e.get("completed_tasks") or {}).get(m["id"], []))
+    return all(x["id"] in done for x in m.get("materials", []))
+
+
+def course_grades(e, course, modules):
+    exig = course.get("final_exam", {}).get("pass_score", 75)
+    results = e.get("module_results") or {}
+    mods = []
+    for m in modules:
+        if m.get("quiz", {}).get("questions"):
+            pct = results.get(m["id"])
+            mods.append({"module_id": m["id"], "title": m["title"], "pct": pct,
+                         "nota": to_nota(pct, m["quiz"].get("pass_score", 75))})
+    pcts = [x["pct"] for x in mods if x["pct"] is not None]
+    mod_avg = round(sum(pcts) / len(pcts)) if pcts else None
+    final = e.get("final_score")
+    overall = round((mod_avg + final) / 2) if mod_avg is not None and final is not None else None
+    return {"modules": mods, "modules_avg_pct": mod_avg, "modules_avg_nota": to_nota(mod_avg, exig),
+            "final_pct": final, "final_nota": to_nota(final, exig),
+            "overall_pct": overall, "overall_nota": to_nota(overall, exig)}
 
 
 def module_status(modules, completed):
@@ -204,13 +259,14 @@ async def run_ai_analysis(sub_id):
         await db.submissions.update_one({"id": sub_id}, {"$set": {"ai_status": "error"}})
 
 
-async def issue_diploma(user, course):
+async def issue_diploma(user, course, nota=None):
     existing = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"]}, {"_id": 0})
     if existing:
         return existing
     doc = {"id": new_id(), "code": secrets.token_hex(6).upper(), "user_id": user["id"], "course_id": course["id"],
            "student_name": f"{user['nombre']} {user['apellidos']}", "rut": user.get("rut", ""),
-           "course_title": course["title"], "hours": course.get("hours", 0), "issued_at": now_iso()}
+           "course_title": course["title"], "hours": course.get("hours", 0), "nota_final": nota,
+           "issued_at": now_iso()}
     await db.diplomas.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -412,6 +468,7 @@ async def get_course(course_id: str, user=Depends(get_current_user)):
         for m in course["modules"]:
             m.update(st[m["id"]])
         course["final_unlocked"] = all(s["completed"] for s in st.values()) and len(modules) > 0
+        course["grades"] = course_grades(e, {**course, "final_exam": {"pass_score": course["final_exam"]["pass_score"]}}, modules)
         diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course_id}, {"_id": 0, "code": 1})
         course["diploma_code"] = diploma["code"] if diploma else None
     return course
@@ -457,15 +514,35 @@ async def accessible_module(module_id, user):
     return m, e
 
 
+SUB_PUBLIC = {"_id": 0, "score": 1, "passed": 1, "status": 1, "nota": 1, "pass_score": 1, "feedback": 1, "created_at": 1}
+
+
+async def last_submission(user_id, course_id, module_id):
+    rows = await db.submissions.find({"user_id": user_id, "course_id": course_id, "module_id": module_id},
+                                     SUB_PUBLIC).sort("created_at", -1).to_list(1)
+    return rows[0] if rows else None
+
+
 @api.get("/modules/{module_id}")
 async def get_module(module_id: str, user=Depends(get_current_user)):
-    m, _ = await accessible_module(module_id, user)
+    m, e = await accessible_module(module_id, user)
     if user["role"] not in STAFF:
         m["quiz"] = strip_answers(m.get("quiz"))
-        last = await db.submissions.find({"user_id": user["id"], "module_id": module_id},
-                                         {"_id": 0, "score": 1, "passed": 1, "created_at": 1}).sort("created_at", -1).to_list(1)
-        m["last_submission"] = last[0] if last else None
+        m["completed_tasks"] = (e.get("completed_tasks") or {}).get(module_id, [])
+        m["tasks_done"] = module_tasks_done(m, e)
+        m["last_submission"] = await last_submission(user["id"], m["course_id"], module_id)
     return m
+
+
+@api.post("/modules/{module_id}/tasks/{material_id}/complete")
+async def complete_task(module_id: str, material_id: str, user=Depends(get_current_user)):
+    m, e = await accessible_module(module_id, user)
+    if not e:
+        raise HTTPException(400, "Solo estudiantes")
+    if not any(x["id"] == material_id for x in m.get("materials", [])):
+        raise HTTPException(404, "Tarea no encontrada")
+    await db.enrollments.update_one({"id": e["id"]}, {"$addToSet": {f"completed_tasks.{module_id}": material_id}})
+    return {"ok": True}
 
 
 @api.post("/modules/{module_id}/complete")
@@ -475,21 +552,65 @@ async def complete_module(module_id: str, user=Depends(get_current_user)):
         raise HTTPException(400, "Solo estudiantes")
     if m.get("quiz", {}).get("questions"):
         raise HTTPException(400, "Este módulo requiere aprobar la evaluación")
+    if not module_tasks_done(m, e):
+        raise HTTPException(400, "Debes completar todas las tareas del módulo")
     await db.enrollments.update_one({"id": e["id"]}, {"$addToSet": {"completed_modules": module_id}})
     return {"ok": True}
 
 
+async def apply_result(sub):
+    """Apply a fully graded submission to the enrollment (module progress / final / diploma)."""
+    e = await db.enrollments.find_one({"user_id": sub["user_id"], "course_id": sub["course_id"]}, {"_id": 0})
+    if not e:
+        return None
+    mid = sub["module_id"]
+    if mid:
+        if sub["passed"]:
+            await db.enrollments.update_one({"id": e["id"]}, {"$addToSet": {"completed_modules": mid},
+                                                            "$set": {f"module_results.{mid}": sub["score"]}})
+        else:
+            await db.enrollments.update_one({"id": e["id"]}, {"$set": {f"completed_tasks.{mid}": []}})
+        return None
+    if not sub["passed"]:
+        return None
+    await db.enrollments.update_one({"id": e["id"]}, {"$set": {"final_passed": True, "final_score": sub["score"],
+                                                            "completed_at": now_iso()}})
+    e["final_score"] = sub["score"]
+    course = await db.courses.find_one({"id": sub["course_id"]}, {"_id": 0})
+    user = await db.users.find_one({"id": sub["user_id"]}, {"_id": 0})
+    grades = course_grades(e, course, await get_modules(course["id"]))
+    return await issue_diploma(user, course, grades["overall_nota"])
+
+
+def finalize_fields(sub, results):
+    score = score_of(results)
+    sub["question_scores"] = results
+    if score is None:
+        sub.update({"status": "en_revision", "score": None, "passed": None, "nota": None})
+    else:
+        sub.update({"status": "calificada", "score": score, "passed": score >= sub["pass_score"],
+                    "nota": to_nota(score, sub["pass_score"])})
+
+
 async def save_submission(user, course_id, module_id, quiz, body: SubmitIn, bg: BackgroundTasks):
-    score, passed = grade(quiz, body.answers)
+    pending = await db.submissions.find_one({"user_id": user["id"], "course_id": course_id, "module_id": module_id,
+                                             "status": "en_revision"})
+    if pending:
+        raise HTTPException(400, "Tu evaluación anterior está en revisión por el docente")
     sub = {"id": new_id(), "user_id": user["id"], "student_name": f"{user['nombre']} {user['apellidos']}",
            "course_id": course_id, "module_id": module_id, "kind": "final" if module_id is None else "modulo",
-           "questions": quiz["questions"], "answers": body.answers, "score": score, "passed": passed,
+           "questions": quiz["questions"], "answers": body.answers, "pass_score": quiz.get("pass_score", 75),
+           "feedback": "",
            "behavior": {"tab_switches": body.tab_switches, "paste_events": body.paste_events,
                         "duration_sec": body.duration_sec},
            "ai_status": "pendiente", "ai_analysis": None, "created_at": now_iso()}
+    finalize_fields(sub, auto_grade(quiz, body.answers))
     await db.submissions.insert_one(sub)
+    sub.pop("_id", None)
     bg.add_task(run_ai_analysis, sub["id"])
-    return sub
+    diploma = await apply_result(sub) if sub["status"] == "calificada" else None
+    return {k: sub[k] for k in ("score", "passed", "status", "nota", "pass_score")} | {
+        "diploma_code": diploma["code"] if diploma else None}
 
 
 @api.post("/modules/{module_id}/submit")
@@ -499,10 +620,11 @@ async def submit_module(module_id: str, body: SubmitIn, bg: BackgroundTasks, use
         raise HTTPException(400, "Solo estudiantes")
     if not m.get("quiz", {}).get("questions"):
         raise HTTPException(400, "Este módulo no tiene evaluación")
-    sub = await save_submission(user, m["course_id"], module_id, m["quiz"], body, bg)
-    if sub["passed"]:
-        await db.enrollments.update_one({"id": e["id"]}, {"$addToSet": {"completed_modules": module_id}})
-    return {"score": sub["score"], "passed": sub["passed"], "pass_score": m["quiz"]["pass_score"]}
+    if module_id in e["completed_modules"]:
+        raise HTTPException(400, "Ya aprobaste este módulo")
+    if not module_tasks_done(m, e):
+        raise HTTPException(400, "Debes completar todas las tareas del módulo antes del examen")
+    return await save_submission(user, m["course_id"], module_id, m["quiz"], body, bg)
 
 
 @api.get("/courses/{course_id}/final-exam")
@@ -515,8 +637,9 @@ async def get_final_exam(course_id: str, user=Depends(get_current_user)):
     e = await require_enrollment(user, course_id)
     modules = await get_modules(course_id)
     if not modules or not all(m["id"] in e["completed_modules"] for m in modules):
-        raise HTTPException(403, "Debes completar todos los módulos")
-    return {**strip_answers(course["final_exam"]), "course_title": course["title"], "final_passed": e["final_passed"]}
+        raise HTTPException(403, "Debes aprobar todos los exámenes de módulo")
+    return {**strip_answers(course["final_exam"]), "course_title": course["title"], "final_passed": e["final_passed"],
+            "last_submission": await last_submission(user["id"], course_id, None)}
 
 
 @api.post("/courses/{course_id}/final-exam/submit")
@@ -525,16 +648,12 @@ async def submit_final(course_id: str, body: SubmitIn, bg: BackgroundTasks, user
     e = await require_enrollment(user, course_id)
     modules = await get_modules(course_id)
     if not modules or not all(m["id"] in e["completed_modules"] for m in modules):
-        raise HTTPException(403, "Debes completar todos los módulos")
+        raise HTTPException(403, "Debes aprobar todos los exámenes de módulo")
+    if e["final_passed"]:
+        raise HTTPException(400, "Ya aprobaste la evaluación final")
     if not course["final_exam"]["questions"]:
         raise HTTPException(400, "El curso aún no tiene evaluación final")
-    sub = await save_submission(user, course_id, None, course["final_exam"], body, bg)
-    diploma = None
-    if sub["passed"]:
-        await db.enrollments.update_one({"id": e["id"]}, {"$set": {"final_passed": True, "completed_at": now_iso()}})
-        diploma = await issue_diploma(user, course)
-    return {"score": sub["score"], "passed": sub["passed"], "pass_score": course["final_exam"]["pass_score"],
-            "diploma_code": diploma["code"] if diploma else None}
+    return await save_submission(user, course_id, None, course["final_exam"], body, bg)
 
 
 # ---------------- Enrollments ----------------
@@ -585,6 +704,8 @@ async def my_courses(user=Depends(get_current_user)):
         c["module_count"] = total
         c["completed_count"] = len(r["completed_modules"])
         c["final_passed"] = r["final_passed"]
+        full = await db.courses.find_one({"id": c["id"]}, {"_id": 0, "final_exam.pass_score": 1})
+        c["grades"] = course_grades(r, full, await get_modules(c["id"]))
         out.append(c)
     return out
 
@@ -600,6 +721,28 @@ async def list_submissions(course_id: Optional[str] = None, _=Depends(staff_only
         s["course_title"] = titles.get(s["course_id"], "")
         s["module_title"] = mods.get(s["module_id"], "Evaluación final") if s["module_id"] else "Evaluación final"
     return subs
+
+
+@api.post("/submissions/{sub_id}/grade")
+async def grade_submission(sub_id: str, body: GradeIn, _=Depends(staff_only)):
+    sub = await db.submissions.find_one({"id": sub_id}, {"_id": 0})
+    if not sub:
+        raise HTTPException(404, "Entrega no encontrada")
+    if sub.get("status") != "en_revision":
+        raise HTTPException(400, "Esta entrega ya fue calificada")
+    results = dict(sub.get("question_scores") or {})
+    for q in sub["questions"]:
+        if results.get(q["id"]) is None:
+            val = body.grades.get(q["id"])
+            if val is None:
+                raise HTTPException(400, "Debes calificar todas las preguntas de desarrollo")
+            results[q["id"]] = max(0, min(100, int(val)))
+    sub["feedback"] = body.feedback
+    finalize_fields(sub, results)
+    await db.submissions.update_one({"id": sub_id}, {"$set": {k: sub[k] for k in (
+        "question_scores", "status", "score", "passed", "nota", "feedback")}})
+    await apply_result(sub)
+    return sub
 
 
 @api.post("/submissions/{sub_id}/analyze")
@@ -712,7 +855,9 @@ async def analytics_students(_=Depends(staff_only)):
     for s in students:
         sess = await db.sessions.find({"user_id": s["id"]}, {"_id": 0, "duration_sec": 1}).to_list(5000)
         ens = await db.enrollments.find({"user_id": s["id"]}, {"_id": 0}).to_list(500)
-        subs = await db.submissions.find({"user_id": s["id"]}, {"_id": 0, "score": 1, "ai_analysis": 1}).to_list(1000)
+        subs = await db.submissions.find({"user_id": s["id"], "score": {"$ne": None}},
+                                         {"_id": 0, "score": 1, "nota": 1, "ai_analysis": 1}).to_list(1000)
+        notas = [x["nota"] for x in subs if x.get("nota") is not None]
         progs = [round(len(e["completed_modules"]) / mod_counts[e["course_id"]] * 100) for e in ens if mod_counts.get(e["course_id"])]
         ai = [x["ai_analysis"]["percentage"] for x in subs if x.get("ai_analysis")]
         out.append({**public_user(s),
@@ -722,6 +867,7 @@ async def analytics_students(_=Depends(staff_only)):
                     "courses": len(ens),
                     "progress": round(sum(progs) / len(progs)) if progs else 0,
                     "avg_score": round(sum(x["score"] for x in subs) / len(subs)) if subs else None,
+                    "avg_nota": round(sum(notas) / len(notas), 1) if notas else None,
                     "ai_avg": round(sum(ai) / len(ai)) if ai else None})
     return out
 
@@ -775,8 +921,43 @@ async def get_diploma(code: str, user=Depends(get_current_user)):
 async def verify_diploma(code: str):
     d, s = await diploma_with_settings(code)
     return {"valid": True, "code": d["code"], "student_name": d["student_name"], "rut": d.get("rut", ""),
+            "nota_final": d.get("nota_final"),
             "course_title": d["course_title"], "hours": d.get("hours", 0), "issued_at": d["issued_at"],
             "otec_name": s.get("otec_name")}
+
+
+# ---------------- Files (object storage) ----------------
+MAX_FILE = 100 * 1024 * 1024
+ALLOWED_EXT = {"pdf", "ppt", "pptx", "doc", "docx", "xls", "xlsx", "png", "jpg", "jpeg", "gif", "webp",
+               "mp4", "webm", "mov", "mp3", "txt", "zip"}
+
+
+@api.post("/files")
+async def upload_file(file: UploadFile = File(...), user=Depends(staff_only)):
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+    if ext not in ALLOWED_EXT:
+        raise HTTPException(400, "Tipo de archivo no permitido")
+    data = await file.read()
+    if len(data) > MAX_FILE:
+        raise HTTPException(400, "El archivo supera 100 MB")
+    ctype = file.content_type or "application/octet-stream"
+    result = await asyncio.to_thread(put_object, f"{APP_NAME}/uploads/{user['id']}/{new_id()}.{ext}", data, ctype)
+    doc = {"id": new_id(), "storage_path": result["path"], "original_filename": file.filename, "content_type": ctype,
+           "size": len(data), "is_deleted": False, "uploaded_by": user["id"], "created_at": now_iso()}
+    await db.files.insert_one(doc)
+    return {"id": doc["id"], "file_name": file.filename, "content_type": ctype, "size": len(data)}
+
+
+@api.get("/files/{file_id}")
+async def download_file(file_id: str, _=Depends(get_current_user)):
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Archivo no encontrado")
+    data, _ct = await asyncio.to_thread(get_object, rec["storage_path"])
+    disp = "inline" if rec["content_type"].startswith(("image/", "video/", "audio/")) or rec["content_type"] == "application/pdf" else "attachment"
+    safe = rec["original_filename"].encode("ascii", "ignore").decode().replace('"', "")
+    return Response(content=data, media_type=rec["content_type"],
+                    headers={"Content-Disposition": f'{disp}; filename="{safe}"'})
 
 
 @api.get("/")
@@ -797,6 +978,10 @@ async def startup():
     await db.otp_codes.create_index("expires_at", expireAfterSeconds=0)
     await db.diplomas.create_index("code", unique=True)
     await db.sessions.create_index([("user_id", 1), ("date", 1)])
+    try:
+        await asyncio.to_thread(init_storage)
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     if not await db.users.find_one({"email": admin_email}):
         await db.users.insert_one({"id": new_id(), "email": admin_email, "nombre": "Administrador", "apellidos": "OTEC",

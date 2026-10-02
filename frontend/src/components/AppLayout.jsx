@@ -38,7 +38,7 @@ export default function AppLayout({ children }) {
         <div className="px-6 py-6 flex items-center gap-3 border-b border-slate-800">
           <div className="h-9 w-9 rounded-lg bg-teal-600 grid place-items-center text-white"><GraduationCap size={20} /></div>
           <div>
-            <p className="font-heading font-bold text-white leading-tight">Campus OTEC</p>
+            <p className="font-heading font-bold text-white leading-tight">IberoAcademy</p>
             <p className="text-[11px] uppercase tracking-wider text-slate-500">{isStaff(user) ? "Gestión" : "Aula virtual"}</p>
           </div>
         </div>

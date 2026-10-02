@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ShieldCheck, ShieldX } from "lucide-react";
-import { api, fmtDay } from "@/lib/api";
+import { api, fmtDay, fmtNota } from "@/lib/api";
 
 export default function VerifyDiploma() {
   const { code } = useParams();
@@ -27,6 +27,7 @@ export default function VerifyDiploma() {
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">Estudiante</dt><dd className="font-semibold text-lg" data-testid="verify-student-name">{d.student_name}</dd></div>
               {d.rut && <div><dt className="text-xs uppercase tracking-wider text-slate-500">RUT</dt><dd>{d.rut}</dd></div>}
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">Curso</dt><dd className="font-semibold" data-testid="verify-course-title">{d.course_title}</dd></div>
+              {d.nota_final && <div><dt className="text-xs uppercase tracking-wider text-slate-500">Nota final</dt><dd data-testid="verify-nota">{fmtNota(d.nota_final)}</dd></div>}
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">Fecha de emisión</dt><dd>{fmtDay(d.issued_at)}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-slate-500">Código</dt><dd className="font-mono">{d.code}</dd></div>
             </dl>

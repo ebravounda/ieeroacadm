@@ -12,6 +12,7 @@ from pathlib import Path
 
 import jwt
 import httpx
+import requests
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -48,7 +49,7 @@ def create_token(user_id: str) -> str:
 
 
 async def get_current_user(request: Request) -> dict:
-    token = request.cookies.get("access_token")
+    token = request.cookies.get("access_token") or request.query_params.get("auth")
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         token = auth[7:]
@@ -176,6 +177,50 @@ def otp_email_html(name: str, code: str) -> str:
         f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}. Nunca te pediremos este código por correo ni teléfono.</p>'
         '</td></tr></table>'
     )
+
+
+# ---------- Object storage ----------
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+APP_NAME = "iberoacademy"
+_storage_key = None
+
+
+def init_storage(force: bool = False):
+    global _storage_key
+    if _storage_key and not force:
+        return _storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": LLM_KEY}, timeout=30)
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    resp = requests.put(f"{STORAGE_URL}/objects/{path}",
+                        headers={"X-Storage-Key": init_storage(), "Content-Type": content_type},
+                        data=data, timeout=300)
+    if resp.status_code == 404:
+        resp = requests.put(f"{STORAGE_URL}/objects/{path}",
+                            headers={"X-Storage-Key": init_storage(True), "Content-Type": content_type},
+                            data=data, timeout=300)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str):
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": init_storage()}, timeout=120)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+# ---------- Chilean grades (1.0 - 7.0) ----------
+def to_nota(pct, exigencia=60):
+    if pct is None:
+        return None
+    e = max(1, min(99, exigencia))
+    nota = 1 + 3 * pct / e if pct < e else 4 + 3 * (pct - e) / (100 - e)
+    return round(max(1.0, min(7.0, nota)), 1)
 
 
 # ---------- AI usage analysis (Claude) ----------

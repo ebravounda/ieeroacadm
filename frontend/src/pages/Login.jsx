@@ -113,7 +113,7 @@ export default function Login() {
         <div className="w-full max-w-sm fade-up">
           <div className="flex items-center gap-3 mb-10">
             <div className="h-10 w-10 rounded-lg bg-teal-600 grid place-items-center text-white"><GraduationCap size={22} /></div>
-            <span className="font-heading text-xl font-bold">Campus OTEC</span>
+            <span className="font-heading text-xl font-bold">IberoAcademy</span>
           </div>
           <h2 className="text-2xl font-bold mb-1">Bienvenido</h2>
           <p className="text-slate-500 text-sm mb-6">Accede sin contraseña con un código enviado a tu correo.</p>

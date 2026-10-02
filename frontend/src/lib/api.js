@@ -11,6 +11,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+export const fileUrl = (id) =>
+  `${process.env.REACT_APP_BACKEND_URL}/api/files/${id}?auth=${localStorage.getItem("otec_token") || ""}`;
+
+export const fmtNota = (n) => (n === null || n === undefined ? "—" : Number(n).toFixed(1).replace(".", ","));
+
 export function errMsg(e) {
   const d = e?.response?.data?.detail;
   if (!d) return e?.message || "Ocurrió un error";

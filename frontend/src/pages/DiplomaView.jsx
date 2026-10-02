@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { Printer } from "lucide-react";
-import { api, errMsg, fmtDay } from "@/lib/api";
+import { api, errMsg, fmtDay, fmtNota } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 function Signature({ img, name, role }) {
@@ -39,7 +39,7 @@ export default function DiplomaView() {
           {d.rut && <p className="text-sm text-slate-600 mt-1">RUT {d.rut}</p>}
           <p className="mt-3 sm:mt-5 text-sm text-slate-600">por haber aprobado satisfactoriamente el curso</p>
           <p className="mt-1 text-lg sm:text-2xl font-semibold" data-testid="diploma-course-title">{d.course_title}</p>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">{d.hours ? `${d.hours} horas cronológicas · ` : ""}Emitido el {fmtDay(d.issued_at)}</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">{d.nota_final ? <span data-testid="diploma-nota">Nota final {fmtNota(d.nota_final)} · </span> : ""}{d.hours ? `${d.hours} horas cronológicas · ` : ""}Emitido el {fmtDay(d.issued_at)}</p>
         </div>
         <div className="mt-auto flex items-end justify-between gap-4">
           <Signature img={s.rector_signature} name={s.rector_name} role="Rector(a)" />
