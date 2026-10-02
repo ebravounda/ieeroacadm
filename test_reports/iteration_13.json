@@ -1,0 +1,23 @@
+{
+  "summary": "Validated Markdown course import. Backend: created pytest file test_import_modules_md.py (4 tests, all pass) covering: dry_run returns the 5 expected modules in exact order and titles; Word module has sections 'Lección 2. Formato de texto' and 'Recursos' (confirming the normalizer repairs the broken 'Negrita.Lección\\n2\\. Formato' line and strips markdown bullets); plain-text sample still parses to 3 modules (no regression); dry_run false persists 5 modules in Mongo with correct materials — YouTube markdown links become type 'video' with cleaned URL (no utm_source, no backslash) and link text as title; support.microsoft.com links become 'enlace'; no material title/body/url contains 'Respuesta correcta', 'Evaluaciones por módulo', '**', backticks or '&#x20;'; every material has section_id. Frontend: In /cursos/{id}/editar Módulos tab, opened ImportModulesDialog, pasted sample_import_md.txt, Vista previa listed 'Se crearán 5 módulos' with the 5 expected titles including Word→(Lección 1/2/4,Recursos); 'Importar al curso' created modules (toast '5 módulos importados'); opening module Word in editor shows Sección 1 'Lección 1. Introducción a Word', Sección 2 'Lección 2. Formato de texto', etc.; opening Módulo 1 in /modulo/{id} renders a YouTube iframe with src https://www.youtube.com/embed/3IFNhYiFONU.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_import_modules_md.py",
+    "/app/test_reports/pytest/iteration13.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "importer.normalize converts '**' to '' (strip bold) and markdown table rows into pipe-separated plain text; works for the fixture. Edge case: tables with escaped pipes '\\\\|' inside cells would be split incorrectly, but no such content appears in the ChatGPT fixture.",
+    "clean_url() replaces the first '&' with '?' only when the url has no existing '?'. For the fixture ('?v=ID\\&utm_source=...'), after removing utm the url already has '?', so no swap needed — correct. Watch out if ChatGPT ever outputs 'youtu.be/ID&utm_source=...' (no '?'); current code would then rewrite to 'youtu.be/ID?' which is still a valid URL.",
+    "parse_course_text: module title is taken from m.group(2) of 'MÓDULO N: title'. When the title is on the next line (fixture style: '# MÓDULO 1\\n## Competencias ...'), title_next kicks in and uses the next non-empty line — verified working for all 5 modules in the MD fixture.",
+    "The ChatGPT fixture places the module title inside a '## ' subheading that normalize strips to plain text — good. If a user pastes '# MÓDULO 1 — Título' on one line the group(2) regex also captures it correctly."
+  ],
+  "updated_files": ["/app/backend/tests/test_import_modules_md.py"],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100%"},
+  "test_credentials": "Admin: info@iberoacademy.cl (JWT minted via JWT_SECRET env for UI tests)",
+  "seed_data_creation": "Created TEST_IMPORT_MD (via pytest fixture) and TEST_IMPORT_MD_UI (course 25e0fc45-..., for UI test) — both deleted after testing along with their modules.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Admin email is info@iberoacademy.cl. GET /api/courses/{id}/modules is NOT a valid route (returns 405); use GET /api/courses/{id}?include_modules=1 which returns modules with sections and materials embedded. Student module page route is /modulo/{id} (singular), not /modulos/{id}. ImportModulesDialog data-testids: import-modules-button, import-modules-text, import-modules-preview, import-modules-preview-button, import-modules-confirm."
+}
