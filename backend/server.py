@@ -13,7 +13,7 @@ from pydantic import BaseModel, EmailStr, Field
 
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
-                  get_object, to_nota, APP_NAME)
+                  get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token)
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -724,7 +724,7 @@ async def list_submissions(course_id: Optional[str] = None, _=Depends(staff_only
 
 
 @api.post("/submissions/{sub_id}/grade")
-async def grade_submission(sub_id: str, body: GradeIn, _=Depends(staff_only)):
+async def grade_submission(sub_id: str, body: GradeIn, bg: BackgroundTasks, _=Depends(staff_only)):
     sub = await db.submissions.find_one({"id": sub_id}, {"_id": 0})
     if not sub:
         raise HTTPException(404, "Entrega no encontrada")
@@ -742,7 +742,21 @@ async def grade_submission(sub_id: str, body: GradeIn, _=Depends(staff_only)):
     await db.submissions.update_one({"id": sub_id}, {"$set": {k: sub[k] for k in (
         "question_scores", "status", "score", "passed", "nota", "feedback")}})
     await apply_result(sub)
+    bg.add_task(notify_grade, sub)
     return sub
+
+
+async def notify_grade(sub):
+    try:
+        user = await db.users.find_one({"id": sub["user_id"]}, {"_id": 0})
+        course = await db.courses.find_one({"id": sub["course_id"]}, {"_id": 0, "title": 1})
+        mod = await db.modules.find_one({"id": sub["module_id"]}, {"_id": 0, "title": 1}) if sub["module_id"] else None
+        exam = f"examen del módulo “{mod['title']}”" if mod else "evaluación final"
+        await send_email(to=user["email"], subject=f"Tu nota en {course['title']} – {EMAIL_FROM_NAME}",
+                         html=grade_email_html(user["nombre"], course["title"], exam, sub["nota"], sub["score"],
+                                               sub["passed"], sub.get("feedback", "")))
+    except Exception as e:
+        logger.error(f"Grade email failed: {e}")
 
 
 @api.post("/submissions/{sub_id}/analyze")
@@ -958,6 +972,31 @@ async def download_file(file_id: str, _=Depends(get_current_user)):
     safe = rec["original_filename"].encode("ascii", "ignore").decode().replace('"', "")
     return Response(content=data, media_type=rec["content_type"],
                     headers={"Content-Disposition": f'{disp}; filename="{safe}"'})
+
+
+OFFICE_EXT = (".ppt", ".pptx", ".doc", ".docx", ".xls", ".xlsx")
+
+
+@api.get("/files/{file_id}/viewer-url")
+async def file_viewer_url(file_id: str, request: Request, _=Depends(get_current_user)):
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False}, {"_id": 0})
+    if not rec or not rec["original_filename"].lower().endswith(OFFICE_EXT):
+        raise HTTPException(404, "Archivo no encontrado")
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    ext = rec["original_filename"].rsplit(".", 1)[-1].lower()
+    return {"url": f"https://{host}/api/public/files/{create_file_token(file_id)}/file.{ext}"}
+
+
+@api.get("/public/files/{token}/{name}")
+async def public_file(token: str, name: str):
+    file_id = read_file_token(token)
+    if not file_id:
+        raise HTTPException(403, "Enlace expirado")
+    rec = await db.files.find_one({"id": file_id, "is_deleted": False}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Archivo no encontrado")
+    data, _ct = await asyncio.to_thread(get_object, rec["storage_path"])
+    return Response(content=data, media_type=rec["content_type"])
 
 
 @api.get("/")

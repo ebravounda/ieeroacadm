@@ -48,6 +48,19 @@ def create_token(user_id: str) -> str:
     return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
 
 
+def create_file_token(file_id: str) -> str:
+    payload = {"sub": file_id, "exp": now() + timedelta(hours=2), "type": "file"}
+    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
+
+
+def read_file_token(token: str):
+    try:
+        p = jwt.decode(token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
+    except jwt.InvalidTokenError:
+        return None
+    return p["sub"] if p.get("type") == "file" else None
+
+
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token") or request.query_params.get("auth")
     auth = request.headers.get("Authorization", "")
@@ -60,6 +73,8 @@ async def get_current_user(request: Request) -> dict:
     except jwt.ExpiredSignatureError:
         raise HTTPException(401, "Sesión expirada")
     except jwt.InvalidTokenError:
+        raise HTTPException(401, "Token inválido")
+    if payload.get("type") != "access":
         raise HTTPException(401, "Token inválido")
     user = await db.users.find_one({"id": payload["sub"], "active": True}, {"_id": 0})
     if not user:
@@ -175,6 +190,23 @@ def otp_email_html(name: str, code: str) -> str:
         f'<p style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#0d9488">{escape(code)}</p>'
         '<p>El código vence en 10 minutos. Si no solicitaste este ingreso, ignora este mensaje.</p>'
         f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}. Nunca te pediremos este código por correo ni teléfono.</p>'
+        '</td></tr></table>'
+    )
+
+
+def grade_email_html(name, course, exam, nota, score, passed, feedback) -> str:
+    nota_txt = f"{nota:.1f}".replace(".", ",")
+    color = "#059669" if passed else "#e11d48"
+    fb = f'<p><b>Comentario del docente:</b> {escape(feedback)}</p>' if feedback else ""
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'<p>Hola {escape(name)}, tu docente calificó tu {escape(exam)} del curso <b>{escape(course)}</b>.</p>'
+        f'<p style="font-size:36px;font-weight:bold;color:{color};margin:8px 0">Nota {nota_txt}</p>'
+        f'<p>Logro: {score}% · {"Aprobado" if passed else "No aprobado"}</p>'
+        f'{fb}'
+        '<p>Ingresa a la plataforma para ver el detalle y continuar tu curso.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}.</p>'
         '</td></tr></table>'
     )
 

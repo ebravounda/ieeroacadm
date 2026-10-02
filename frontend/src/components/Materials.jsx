@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { FileText, Video, Paperclip, Link2, Trash2, Upload, Download, ExternalLink } from "lucide-react";
 import { api, errMsg, fileUrl } from "@/lib/api";
@@ -72,6 +72,21 @@ export function embedUrl(url) {
   return url;
 }
 
+const OFFICE_RE = /\.(pptx?|docx?|xlsx?)$/i;
+
+function OfficeViewer({ m }) {
+  const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    api.get(`/files/${m.file_id}/viewer-url`)
+      .then((r) => setSrc(`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(r.data.url)}`))
+      .catch(() => setFailed(true));
+  }, [m.file_id]);
+  if (failed) return null;
+  if (!src) return <div className="h-[480px] rounded-lg border bg-slate-50 grid place-items-center text-sm text-slate-400">Cargando presentación…</div>;
+  return <iframe title={m.title} src={src} className="w-full h-[520px] rounded-lg border bg-white" allowFullScreen data-testid={`material-office-viewer-${m.id}`} />;
+}
+
 export function MaterialBody({ m }) {
   if (m.type === "texto") return <div className="whitespace-pre-wrap leading-relaxed text-slate-700">{m.body}</div>;
   const instr = m.body && <p className="text-sm text-slate-600 mb-3">{m.body}</p>;
@@ -85,6 +100,7 @@ export function MaterialBody({ m }) {
   else if (ct.startsWith("video/")) preview = <video src={url} controls className="w-full rounded-lg bg-black" />;
   else if (ct.startsWith("audio/")) preview = <audio src={url} controls className="w-full" />;
   else if (ct === "application/pdf") preview = <iframe title={m.title} src={url} className="w-full h-[520px] rounded-lg border" />;
+  else if (OFFICE_RE.test(m.file_name || "")) preview = <OfficeViewer m={m} />;
   return (
     <>
       {instr}
