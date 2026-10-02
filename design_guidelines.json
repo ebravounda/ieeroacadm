@@ -1,0 +1,113 @@
+{
+  "project_title": "EduCentro OTEC - Platforma Educativa e Institucional",
+  "theme": "Light mode default with dark mode toggle. Deep institutional slate navy background accents with warm ivory/slate surfaces and academic emerald primary accents.",
+  "language": "es",
+  "archetype": "ARCHETYPE 1 & 4 HYBRID: ACADEMIC AUTHORITY & MODERN PRECISION (Grounded Slate, Deep Emerald, Warm Sand & Electric Cobalt)",
+  "typography": {
+    "font_family_heading": "Plus Jakarta Sans, Cabinet Grotesk, sans-serif",
+    "font_family_body": "Inter, DM Sans, system-ui, sans-serif",
+    "font_family_mono": "JetBrains Mono, Source Code Pro, monospace",
+    "font_weights": {
+      "light": "300",
+      "regular": "400",
+      "medium": "500",
+      "semibold": "600",
+      "bold": "700",
+      "extrabold": "800"
+    },
+    "hierarchy_rules": {
+      "h1": "text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-slate-900 dark:text-slate-100",
+      "h3": "text-xl sm:text-2xl font-semibold tracking-tight text-slate-800 dark:text-slate-200",
+      "h4": "text-lg font-semibold text-slate-800 dark:text-slate-200",
+      "subtitle": "text-base sm:text-lg text-slate-600 dark:text-slate-400 font-normal leading-relaxed",
+      "body": "text-sm sm:text-base text-slate-700 dark:text-slate-300 leading-normal",
+      "caption": "text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400"
+    }
+  },
+  "colors": {
+    "primary": {
+      "main": "#0D9488",
+      "hover": "#0F766E",
+      "light": "#CCFBF1",
+      "text_on_primary": "#FFFFFF"
+    },
+    "institutional_navy": {
+      "main": "#0F172A",
+      "card_bg": "#1E293B",
+      "border": "#334155"
+    },
+    "accent_indigo": {
+      "main": "#4F46E5",
+      "light": "#EEF2FF",
+      "border": "#C7D2FE"
+    },
+    "ai_detection_badge": {
+      "low_ai": "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+      "medium_ai": "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
+      "high_ai": "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "danger": "#EF4444",
+      "info": "#3B82F6"
+    },
+    "background": {
+      "light": "#F8FAFC",
+      "light_surface": "#FFFFFF",
+      "dark": "#0B0F17",
+      "dark_surface": "#111827"
+    }
+  },
+  "layout_and_spacing": {
+    "spacing_scale": "Use generous Tailwind spacing: p-6, p-8, p-12 for dashboard containers and cards",
+    "grid_modes": {
+      "dashboard_bento": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+      "course_catalog": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8",
+      "analytics_dense": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+    },
+    "card_style": "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 p-6"
+  },
+  "key_components_and_features": {
+    "otp_login": {
+      "description": "Clean auth page with centered OTP 6-digit verification code input, resend timer, and instant email verification code state.",
+      "testid_prefix": "otp-login"
+    },
+    "dashboard_analytics": {
+      "description": "Admin and teacher control panel with student access charts, active time monitoring, course progress bars, and CSV export capabilities.",
+      "testid_prefix": "analytics"
+    },
+    "ai_detector_panel": {
+      "description": "Claude AI percentage probability analyzer for student open-answer exam submissions with highlighted AI-generated sentences and reasoning breakdown.",
+      "testid_prefix": "ai-detector"
+    },
+    "modular_course_flow": {
+      "description": "Sequential module unlock workflow requiring student completion of asynchronous module N before unlocking module N+1.",
+      "testid_prefix": "module-flow"
+    },
+    "live_classes": {
+      "description": "Teams and Google Meet session manager with live status indicators and 'Abrir clase' external launcher buttons.",
+      "testid_prefix": "live-classes"
+    },
+    "diploma_and_qr": {
+      "description": "Official OTEC diploma viewer with rector and vice-rector signature PNG graphics, student Rut/DNI, verification QR code linking to public verification endpoint (/verificar-diploma/:code).",
+      "testid_prefix": "diploma"
+    }
+  },
+  "image_urls": {
+    "hero_education": "https://images.unsplash.com/photo-1758270705290-62b6294dd044?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxhZHVsdCUyMHN0dWRlbnQlMjBzdHVkeSUyMGxhcHRvcCUyMHVuaXZlcnNpdHl8ZW58MHx8fHwxNzkwOTQ1MTQ3fDA&ixlib=rb-4.1.0&q=85",
+    "student_studying": "https://images.unsplash.com/photo-1620829813573-7c9e1877706f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHw0fHxhZHVsdCUyMHN0dWRlbnQlMjBzdHVkeSUyMGxhcHRvcCUyMHVuaXZlcnNpdHl8ZW58MHx8fHwxNzkwOTQ1MTQ3fDA&ixlib=rb-4.1.0&q=85",
+    "library_learning": "https://images.unsplash.com/photo-1741699427768-fbb97fc21425?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxhZHVsdCUyMHN0dWRlbnQlMjBzdHVkeSUyMGxhcHRvcCUyMHVuaXZlcnNpdHl8ZW58MHx8fHwxNzkwOTQ1MTQ3fDA&ixlib=rb-4.1.0&q=85",
+    "collaborative_group": "https://images.unsplash.com/photo-1758270705518-b61b40527e76?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwyfHxhZHVsdCUyMHN0dWRlbnQlMjBzdHVkeSUyMGxhcHRvcCUyMHVuaXZlcnNpdHl8ZW58MHx8fHwxNzkwOTQ1MTQ3fDA&ixlib=rb-4.1.0&q=85"
+  },
+  "instructions_to_main_agent": [
+    "Use JavaScript (.js / .jsx) components as per project setup.",
+    "Ensure all user-facing UI text is strictly in Spanish (Español).",
+    "Implement Sonner toast notifications (from src/components/ui/sonner) for user feedback.",
+    "Ensure header navigation has sticky positioning with backdrop-blur-md bg-white/80 dark:bg-slate-900/80 and z-50.",
+    "Add explicit data-testid attributes to all buttons, form fields, navigation items, metrics, and interactive elements.",
+    "Never use generic centered layouts globally; use asymmetrical bento grids for student/admin portals.",
+    "Include Claude AI probability bar for open-text evaluation reviews."
+  ]
+}
