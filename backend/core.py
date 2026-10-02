@@ -54,8 +54,10 @@ def new_id():
     return str(uuid.uuid4())
 
 
-def create_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": now() + timedelta(days=7), "type": "access"}
+def create_token(user_id: str, imp: str = None) -> str:
+    payload = {"sub": user_id, "exp": now() + (timedelta(hours=1) if imp else timedelta(days=7)), "type": "access"}
+    if imp:
+        payload["imp"] = imp
     return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
 
 
@@ -90,6 +92,13 @@ async def get_current_user(request: Request) -> dict:
     user = await db.users.find_one({"id": payload["sub"], "active": True}, {"_id": 0})
     if not user:
         raise HTTPException(401, "Usuario no encontrado")
+    if payload.get("imp"):
+        admin = await db.users.find_one({"id": payload["imp"], "active": True, "role": "admin"}, {"_id": 0})
+        if not admin:
+            raise HTTPException(401, "Sesión de vista inválida")
+        if request.method not in ("GET", "HEAD", "OPTIONS") and request.url.path != "/api/auth/logout":
+            raise HTTPException(403, "Vista de alumno: solo lectura")
+        user["impersonated_by"] = {"id": admin["id"], "nombre": f"{admin['nombre']} {admin['apellidos']}"}
     return user
 
 

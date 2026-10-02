@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { UserPlus, Upload, Pencil } from "lucide-react";
+import { UserPlus, Upload, Pencil, Eye } from "lucide-react";
 import { api, errMsg, fmtDate } from "@/lib/api";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, startImpersonation } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -158,6 +158,7 @@ export default function Students() {
                 <TableCell><Badge variant={u.active ? "secondary" : "destructive"}>{u.role}{!u.active && " · inactivo"}</Badge></TableCell>
                 <TableCell className="text-xs text-slate-500">{fmtDate(u.last_login)}</TableCell>
                 <TableCell className="text-right space-x-2 whitespace-nowrap">
+                  {isAdmin && u.role === "estudiante" && u.active && <Button size="sm" variant="ghost" onClick={() => startImpersonation(u.id).catch((e) => toast.error(errMsg(e)))} data-testid={`impersonate-user-${u.id}`}><Eye size={14} className="mr-1" /> Ver como alumno</Button>}
                   {isAdmin && <EditUserDialog user={u} onDone={load} />}
                   {u.role === "estudiante" && <EnrollDialog user={u} courses={courses} onDone={load} />}
                   {isAdmin && u.id !== me.id && <Button size="sm" variant="ghost" onClick={() => toggle(u)} data-testid={`toggle-user-${u.id}`}>{u.active ? "Desactivar" : "Activar"}</Button>}

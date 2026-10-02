@@ -471,7 +471,20 @@ async def verify_code(body: VerifyIn, request: Request, response: Response):
 
 @api.get("/auth/me")
 async def me(user=Depends(get_current_user)):
-    return public_user(user)
+    return public_user(user) | ({"impersonated_by": user["impersonated_by"]} if user.get("impersonated_by") else {})
+
+
+@api.post("/users/{user_id}/impersonate")
+async def impersonate(user_id: str, request: Request, admin=Depends(admin_only)):
+    if admin.get("impersonated_by"):
+        raise HTTPException(400, "Ya estás en vista de alumno")
+    target = await db.users.find_one({"id": user_id, "active": True}, {"_id": 0})
+    if not target or target["role"] != "estudiante":
+        raise HTTPException(400, "Solo se puede ver la cuenta de estudiantes activos")
+    await db.impersonation_logs.insert_one({"id": new_id(), "admin_id": admin["id"], "admin_email": admin["email"],
+                                            "student_id": target["id"], "student_email": target["email"],
+                                            "ts": now_iso(), "ip": request.client.host if request.client else ""})
+    return {"token": create_token(target["id"], imp=admin["id"]), "user": public_user(target)}
 
 
 @api.post("/auth/logout")

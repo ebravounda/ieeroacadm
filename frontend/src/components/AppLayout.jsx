@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, CreditCard, Globe, Plug, Send } from "lucide-react";
-import { useAuth, isStaff } from "@/context/AuthContext";
+import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, CreditCard, Globe, Plug, Send, Eye } from "lucide-react";
+import { useAuth, isStaff, stopImpersonation } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
@@ -28,23 +28,34 @@ function contextOf(path) {
   return m ? { module_id: m[1] } : {};
 }
 
-function useHeartbeat() {
+function useHeartbeat(enabled) {
   const { pathname } = useLocation();
   const path = useRef(pathname);
   path.current = pathname;
   useEffect(() => {
+    if (!enabled) return;
     const beat = () => document.visibilityState === "visible" && api.post("/activity/heartbeat", contextOf(path.current)).catch(() => {});
     beat();
     const t = setInterval(beat, 60000);
     return () => clearInterval(t);
-  }, []);
+  }, [enabled]);
+}
+
+function ImpersonationBar({ user }) {
+  return (
+    <div className="sticky top-0 z-30 bg-amber-400 text-slate-900 px-4 py-2 flex flex-wrap items-center gap-3 text-sm" data-testid="impersonation-bar">
+      <Eye size={16} />
+      <span className="flex-1 min-w-[200px]">Estás viendo la plataforma como <b>{user.nombre} {user.apellidos}</b> ({user.email}) · solo lectura</span>
+      <Button size="sm" className="bg-[#0F172A] hover:bg-slate-800 text-white" onClick={stopImpersonation} data-testid="impersonation-exit-button">Volver a mi cuenta de admin</Button>
+    </div>
+  );
 }
 
 export default function AppLayout({ children }) {
   const { user, logout } = useAuth();
   const nav = useNavigate();
   const [open, setOpen] = useState(false);
-  useHeartbeat();
+  useHeartbeat(!user.impersonated_by);
   const items = NAV.filter((n) => n.roles.includes(user.role));
 
   return (
@@ -77,6 +88,7 @@ export default function AppLayout({ children }) {
       </aside>
       {open && <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setOpen(false)} />}
       <div className="flex-1 min-w-0">
+        {user.impersonated_by && <ImpersonationBar user={user} />}
         <header className="lg:hidden sticky top-0 z-20 backdrop-blur-md bg-white/80 border-b px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setOpen(true)} data-testid="mobile-menu-button"><Menu /></Button>
           <img src="/logo.png" alt="IberoAcademy" className="h-8 w-auto" />
