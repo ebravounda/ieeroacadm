@@ -29,6 +29,32 @@ function GradeForm({ sub, onDone }) {
   );
 }
 
+function ChoiceReview({ sub }) {
+  const qs = sub.questions.filter((q) => q.type !== "open");
+  if (!qs.length) return null;
+  const picked = (q) => { const a = sub.answers[q.id]; return Array.isArray(a) ? a.map(String) : a == null ? [] : [String(a)]; };
+  const right = (q) => (q.type === "multiple" ? q.correct_multi || [] : [q.correct]).map(String);
+  return (
+    <div className="space-y-3" data-testid="choice-review">
+      <p className="font-semibold text-sm">Preguntas y respuestas del test</p>
+      {qs.map((q, i) => (
+        <div key={q.id} className="border rounded-lg p-4" data-testid={`review-question-${i}`}>
+          <div className="flex justify-between gap-2"><p className="text-sm font-semibold">{i + 1}. {q.text}</p><span className={`text-xs font-mono shrink-0 ${(sub.question_scores || {})[q.id] === 100 ? "text-emerald-700" : "text-rose-600"}`} data-testid={`review-result-${i}`}>{(sub.question_scores || {})[q.id] === 100 ? "Correcta" : "Incorrecta"}</span></div>
+          <ul className="mt-2 space-y-1">
+            {q.options.map((o, k) => {
+              const ok = right(q).includes(String(k)); const mine = picked(q).includes(String(k));
+              return <li key={k} className={`text-sm rounded px-2 py-1 flex justify-between gap-2 ${ok ? "bg-emerald-50 text-emerald-800" : mine ? "bg-rose-50 text-rose-700" : "text-slate-600"}`} data-testid={`review-q${i}-option-${k}`}><span>{o}</span><span className="text-xs shrink-0">{ok && "Correcta"}{ok && mine && " · "}{mine && "Respuesta del alumno"}</span></li>;
+            })}
+          </ul>
+          {!picked(q).length && <p className="text-xs text-slate-400 mt-1">(sin respuesta)</p>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const AttemptBadge = ({ s }) => <span className={`text-xs rounded-full px-2 py-0.5 font-semibold ${(s.attempt || 1) > 1 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`} data-testid={`submission-attempt-${s.id}`}>{(s.attempt || 1) === 1 ? "Primer intento" : (s.attempt === 2 ? "Segundo intento" : `Intento ${s.attempt}`)}</span>;
+
 function Detail({ sub, onReanalyze, busy, onGraded }) {
   const ai = sub.ai_analysis;
   const per = Object.fromEntries((ai?.answers || []).map((a) => [a.question_id, a]));
@@ -51,6 +77,8 @@ function Detail({ sub, onReanalyze, busy, onGraded }) {
         <div className="border rounded-lg p-3"><Copy size={14} className="mx-auto mb-1" /><b className="text-lg">{sub.behavior.paste_events}</b><p>textos pegados</p></div>
         <div className="border rounded-lg p-3"><Clock size={14} className="mx-auto mb-1" /><b className="text-lg">{Math.round(sub.behavior.duration_sec / 60)}</b><p>minutos</p></div>
       </div>
+      {sub.course_reset && <p className="text-sm bg-rose-50 border border-rose-200 text-rose-700 rounded-lg p-3" data-testid="submission-course-reset">Reprobó la evaluación final: su avance fue reiniciado y debe cursar todos los módulos nuevamente.</p>}
+      <ChoiceReview sub={sub} />
       {sub.questions.filter((q) => q.type === "open").map((q) => (
         <div key={q.id} className="border rounded-lg p-4">
           <div className="flex justify-between gap-2"><p className="text-sm font-semibold">{q.text}</p><div className="flex gap-2 items-center shrink-0">{(sub.question_scores || {})[q.id] != null && <span className="text-xs font-mono">{sub.question_scores[q.id]}%</span>}<AiBadge value={per[q.id]?.percentage} /></div></div>
@@ -82,6 +110,7 @@ export default function Submissions() {
           {subs.map((s) => (
             <button key={s.id} onClick={() => setSel(s)} className="w-full text-left p-4 flex flex-wrap items-center gap-4 hover:bg-slate-50 transition-colors" data-testid={`submission-row-${s.id}`}>
               <div className="flex-1 min-w-[200px]"><p className="font-medium">{s.student_name}</p><p className="text-xs text-slate-500">{s.course_title} · {s.module_title} · {fmtDate(s.created_at)}</p></div>
+              <AttemptBadge s={s} />
               {s.status === "en_revision" ? <span className="text-xs rounded-full px-2 py-0.5 bg-indigo-100 text-indigo-700 font-semibold" data-testid={`submission-status-${s.id}`}>Por corregir</span>
                 : <span className={`text-sm font-mono font-semibold ${s.passed ? "text-emerald-700" : "text-rose-600"}`} data-testid={`submission-status-${s.id}`}>{s.score}% · {fmtNota(s.nota)}</span>}
               {s.ai_status === "completado" ? <AiBadge value={s.ai_analysis.percentage} testId={`submission-ai-${s.id}`} /> : <span className="text-xs text-slate-400" data-testid={`submission-ai-${s.id}`}>IA: {s.ai_status}</span>}
@@ -91,7 +120,7 @@ export default function Submissions() {
       )}
       <Sheet open={!!sel} onOpenChange={(o) => !o && setSel(null)}>
         <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
-          {sel && <><SheetHeader><SheetTitle>{sel.student_name}</SheetTitle><p className="text-sm text-slate-500">{sel.course_title} · {sel.module_title} · {sel.status === "en_revision" ? "Por corregir" : `Logro ${sel.score}% · Nota ${fmtNota(sel.nota)}`}</p></SheetHeader><Detail sub={sel} onReanalyze={reanalyze} busy={busy} onGraded={(d) => { setSel({ ...sel, ...d }); load(); }} /></>}
+          {sel && <><SheetHeader><SheetTitle className="flex items-center gap-2">{sel.student_name} <AttemptBadge s={sel} /></SheetTitle><p className="text-sm text-slate-500">{sel.course_title} · {sel.module_title} · {sel.status === "en_revision" ? "Por corregir" : `Logro ${sel.score}% · Nota ${fmtNota(sel.nota)}`}</p></SheetHeader><Detail sub={sel} onReanalyze={reanalyze} busy={busy} onGraded={(d) => { setSel({ ...sel, ...d }); load(); }} /></>}
         </SheetContent>
       </Sheet>
     </>

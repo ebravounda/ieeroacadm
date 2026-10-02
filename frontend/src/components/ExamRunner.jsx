@@ -79,7 +79,7 @@ export function ExamResult({ result, children }) {
   }
   return (
     <div className={`rounded-xl p-6 border ${result.passed ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`} data-testid="exam-result">
-      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500">Resultado</p>
+      <p className="text-xs uppercase tracking-wider font-semibold text-slate-500" data-testid="exam-result-attempt">Resultado{result.attempt ? ` · Intento ${result.attempt}` : ""}</p>
       <div className="flex items-end gap-6 mt-1">
         <div><p className="text-4xl font-heading font-extrabold" data-testid="exam-result-nota">{fmtNota(result.nota)}</p><p className="text-xs text-slate-500">Nota</p></div>
         <div><p className="text-2xl font-heading font-bold text-slate-600" data-testid="exam-result-score">{result.score}%</p><p className="text-xs text-slate-500">Logro</p></div>

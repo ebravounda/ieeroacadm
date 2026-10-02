@@ -42,6 +42,11 @@ export default function QuizBuilder({ quiz, onChange, prefix }) {
         <Input type="number" min={1} max={100} className="w-24" value={quiz.pass_score} onChange={(e) => onChange({ ...quiz, pass_score: Number(e.target.value) })} data-testid={`${prefix}-pass-score`} />
         <span className="text-xs text-slate-500">equivale a nota 4,0</span>
       </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Label>Preguntas por alumno</Label>
+        <Input type="number" min={1} className="w-24" value={quiz.draw_count ?? 10} onChange={(e) => onChange({ ...quiz, draw_count: Math.max(1, Number(e.target.value) || 1) })} data-testid={`${prefix}-draw-count`} />
+        <span className="text-xs text-slate-500" data-testid={`${prefix}-bank-info`}>Banco: {qs.length} preguntas · cada alumno recibe {Math.min(quiz.draw_count ?? 10, qs.length)} al azar con alternativas mezcladas{qs.length <= (quiz.draw_count ?? 10) && qs.length > 0 ? " (agrega más preguntas al banco para que cada alumno reciba preguntas distintas)" : ""}</span>
+      </div>
       {qs.map((q, i) => (
         <div key={q.id} className="border rounded-lg p-4 bg-slate-50 space-y-3" data-testid={`${prefix}-question-${i}`}>
           <div className="flex items-center justify-between">

@@ -84,6 +84,7 @@ class Question(BaseModel):
 class Quiz(BaseModel):
     questions: List[Question] = []
     pass_score: int = 75
+    draw_count: int = Field(default=10, ge=0)
 
 
 class Material(BaseModel):
@@ -228,6 +229,32 @@ def strip_answers(quiz):
         if q["type"] == "mc":
             q["type"] = "single"
     return {"questions": qs, "pass_score": (quiz or {}).get("pass_score", 75)}
+
+
+def shuffle_options(q):
+    q = dict(q)
+    opts = q.get("options") or []
+    if opts:
+        perm = random.sample(range(len(opts)), len(opts))
+        q["options"] = [opts[i] for i in perm]
+        if q.get("correct") in perm:
+            q["correct"] = perm.index(q["correct"])
+        q["correct_multi"] = [perm.index(i) for i in q.get("correct_multi") or [] if i in perm]
+    return q
+
+
+async def get_draw(user_id, course_id, module_id, quiz):
+    """Random question set assigned to a student until they submit it."""
+    key = {"user_id": user_id, "course_id": course_id, "module_id": module_id}
+    d = await db.quiz_draws.find_one(key, {"_id": 0})
+    if d:
+        return d["quiz"]
+    qs = (quiz or {}).get("questions", [])
+    n = (quiz or {}).get("draw_count", 10) or len(qs)
+    picked = random.sample(qs, min(n, len(qs)))
+    dq = {"questions": [shuffle_options(q) for q in picked], "pass_score": (quiz or {}).get("pass_score", 75)}
+    await db.quiz_draws.update_one(key, {"$setOnInsert": {**key, "quiz": dq, "created_at": now_iso()}}, upsert=True)
+    return (await db.quiz_draws.find_one(key, {"_id": 0}))["quiz"]
 
 
 def auto_grade(quiz, answers):
@@ -557,7 +584,8 @@ async def get_course(course_id: str, user=Depends(get_current_user)):
         course["modules"] = modules
         return course
     e = await db.enrollments.find_one({"user_id": user["id"], "course_id": course_id}, {"_id": 0})
-    course["final_exam"] = {"question_count": len(course["final_exam"]["questions"]),
+    fq = course["final_exam"]["questions"]
+    course["final_exam"] = {"question_count": min(len(fq), course["final_exam"].get("draw_count", 10) or len(fq)),
                             "pass_score": course["final_exam"]["pass_score"]}
     course["modules"] = [{k: m[k] for k in ("id", "title", "description", "order")} for m in modules]
     course["enrollment"] = e
@@ -612,7 +640,8 @@ async def accessible_module(module_id, user):
     return m, e
 
 
-SUB_PUBLIC = {"_id": 0, "score": 1, "passed": 1, "status": 1, "nota": 1, "pass_score": 1, "feedback": 1, "created_at": 1}
+SUB_PUBLIC = {"_id": 0, "score": 1, "passed": 1, "status": 1, "nota": 1, "pass_score": 1, "feedback": 1, "created_at": 1,
+              "attempt": 1, "course_reset": 1}
 
 
 async def last_submission(user_id, course_id, module_id):
@@ -625,7 +654,10 @@ async def last_submission(user_id, course_id, module_id):
 async def get_module(module_id: str, user=Depends(get_current_user)):
     m, e = await accessible_module(module_id, user)
     if user["role"] not in STAFF:
-        m["quiz"] = strip_answers(m.get("quiz"))
+        quiz = m.get("quiz") or {}
+        if quiz.get("questions") and not m["completed"]:
+            quiz = await get_draw(user["id"], m["course_id"], module_id, quiz)
+        m["quiz"] = strip_answers(quiz)
         m["completed_tasks"] = (e.get("completed_tasks") or {}).get(module_id, [])
         m["tasks_done"] = module_tasks_done(m, e)
         m["time_spent_min"] = await module_minutes(user["id"], module_id)
@@ -675,6 +707,13 @@ async def apply_result(sub):
             await db.module_sessions.delete_one({"user_id": sub["user_id"], "module_id": mid})
         return None
     if not sub["passed"]:
+        mids = [m["id"] for m in await get_modules(sub["course_id"])]
+        await db.enrollments.update_one({"id": e["id"]}, {"$set": {"completed_modules": [], "completed_tasks": {},
+                                                                "module_results": {}}})
+        await db.module_sessions.delete_many({"user_id": sub["user_id"], "module_id": {"$in": mids}})
+        await db.quiz_draws.delete_many({"user_id": sub["user_id"], "course_id": sub["course_id"]})
+        await db.submissions.update_one({"id": sub["id"]}, {"$set": {"course_reset": True}})
+        sub["course_reset"] = True
         return None
     await db.enrollments.update_one({"id": e["id"]}, {"$set": {"final_passed": True, "final_score": sub["score"],
                                                             "completed_at": now_iso()}})
@@ -700,7 +739,10 @@ async def save_submission(user, course_id, module_id, quiz, body: SubmitIn, bg: 
                                              "status": "en_revision"})
     if pending:
         raise HTTPException(400, "Tu evaluación anterior está en revisión por el docente")
-    sub = {"id": new_id(), "user_id": user["id"], "student_name": f"{user['nombre']} {user['apellidos']}",
+    quiz = await get_draw(user["id"], course_id, module_id, quiz)
+    attempt = await db.submissions.count_documents({"user_id": user["id"], "course_id": course_id,
+                                                    "module_id": module_id}) + 1
+    sub = {"attempt": attempt, "id": new_id(), "user_id": user["id"], "student_name": f"{user['nombre']} {user['apellidos']}",
            "course_id": course_id, "module_id": module_id, "kind": "final" if module_id is None else "modulo",
            "questions": quiz["questions"], "answers": body.answers, "pass_score": quiz.get("pass_score", 75),
            "feedback": "",
@@ -711,8 +753,9 @@ async def save_submission(user, course_id, module_id, quiz, body: SubmitIn, bg: 
     await db.submissions.insert_one(sub)
     sub.pop("_id", None)
     bg.add_task(run_ai_analysis, sub["id"])
+    await db.quiz_draws.delete_one({"user_id": user["id"], "course_id": course_id, "module_id": module_id})
     diploma = await apply_result(sub) if sub["status"] == "calificada" else None
-    return {k: sub[k] for k in ("score", "passed", "status", "nota", "pass_score")} | {
+    return {k: sub.get(k) for k in ("score", "passed", "status", "nota", "pass_score", "attempt", "course_reset")} | {
         "diploma_code": diploma["code"] if diploma else None}
 
 
@@ -742,7 +785,8 @@ async def get_final_exam(course_id: str, user=Depends(get_current_user)):
     modules = await get_modules(course_id)
     if not modules or not all(m["id"] in e["completed_modules"] for m in modules):
         raise HTTPException(403, "Debes aprobar todos los exámenes de módulo")
-    return {**strip_answers(course["final_exam"]), "course_title": course["title"], "final_passed": e["final_passed"],
+    quiz = course["final_exam"] if e["final_passed"] else await get_draw(user["id"], course_id, None, course["final_exam"])
+    return {**strip_answers(quiz), "course_title": course["title"], "final_passed": e["final_passed"],
             "last_submission": await last_submission(user["id"], course_id, None)}
 
 
