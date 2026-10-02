@@ -1,0 +1,29 @@
+{
+  "summary": "Verified super-admin-only reopen final exam + diploma reissue end-to-end. Backend pytest: 19/19 passed covering (a) GET /auth/me is_super=true only for info@iberoacademy.cl (false for other admins, docentes, students, and while impersonating with impersonated_by={id,nombre}); (b) POST /enrollments/{id}/reopen-final returns 403 for non-super admin, docente, student, and super-while-impersonating; for super: enrollment.final_passed=false, final_score=null, completed_at=null, completed_modules=all module ids, final_reopened_by/at set, diplomas for user+course deleted, final quiz_draws cleared; student can then GET /final-exam again and submit; passing creates a NEW diploma with new code status=pendiente; (c) POST /diplomas/{id}/reissue 403 for non-super, 404 for non-approved, success for super: new diploma status=aprobado, reissued_from=old code, old becomes anulado with replaced_by+annulled_at; (d) GET /diplomas and /my/diplomas exclude anulados; (e) /public/verify/{old} returns {valid:false, annulled:true, replaced_by, annulled_at}; /public/verify/{new} returns {valid:true, code:new}; (f) POST /diplomas/reissue-bulk 403 for non-super, 200 for super with {reissued, errors}. Frontend verified via Playwright: /diplomas Emitidos tab shows for SUPER admin diploma-reissue-bar, diploma-select-all, diploma-reissue-selected, per-card diploma-reissue-{id} + diploma-select-{id}; all absent for non-super admin. CourseEditor Matriculados tab shows reopen-final-{enrollmentId} only for SUPER (1 button) and 0 for non-super admin. VerifyDiploma public page for old annulled code renders verify-diploma-annulled with verify-replaced-by link; new code renders verify-diploma-valid. Impersonation + diploma approve + final exam submit regressions still working.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_reopen_reissue.py",
+    "/app/test_reports/pytest/iteration18.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "reopen_final: diplomas.delete_many drops ALL diplomas (including historical 'anulado' / 'rechazado') for that user+course. Spec says 'deletes the previous diploma' and the UI confirm text matches ('se eliminará su diploma de este curso'), so this is acceptable, but it does lose the audit trail of previously-annulled certificates for this user+course if any were reissued earlier. Consider filtering by {status: {$ne:'anulado'}} to preserve the annulment history.",
+    "reopen_final does not clear enrollment.module_results — matches requirement that module_results are no longer cleared on final failure (apply_result final-fail branch also leaves module_results intact, only resets completed_modules/completed_tasks). Good.",
+    "reissue_one copies all fields from the old diploma except pdf_path/verify_url/approved_at/approved_by, including status='aprobado' briefly before approve_one overwrites it; the intermediate insert_one sets status='pendiente' so race windows won't expose the half-formed doc as approved. OK.",
+    "reissue_one calls approve_one(notify=False) → no email on reissue. Good (matches spec).",
+    "server.py is 1731 lines — exceeds the 700-line soft limit from code-review guidelines; consider splitting into modules (diplomas.py, enrollments.py, exams.py).",
+    "GET /public/verify/{code} raises 404 when the diploma simply does not exist, but returns 200 for annulled. Behaviour is consistent with the frontend branches (invalid vs annulled) but the frontend relies on a catch for 404 to render verify-diploma-invalid — if the backend ever returns a different error code the UI will fall through to 'Verificando…' indefinitely. Minor robustness nit.",
+    "auth/me returns impersonated_by as an object {id, nombre} — the Pydantic schema is implicit; a typed response model + OpenAPI doc would help FE/BE contracts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reopen_reissue.py"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100%"},
+  "test_credentials": "Minted JWTs directly from JWT_SECRET (passwordless OTP skipped). Super admin info@iberoacademy.cl id loaded from DB; TEST admin/docente/students created and torn down.",
+  "seed_data_creation": "Created TEST_rr_course + 2 modules, TEST_rr_admin, TEST_rr_doc, TEST_rr_stu, TEST_rr_stu_iss, TEST_rr_enr, several TEST_rr_dip* and TEST_ui_* records for UI test. All removed via regex cleanup at the end (users/courses/modules/enrollments/diplomas/quiz_draws/submissions/module_sessions).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Reopen-final-exam and diploma-reissue (super-admin-only) are complete and working on backend + frontend. Pytest file: /app/backend/tests/test_reopen_reissue.py — run with env loaded from backend/.env + frontend/.env: `set -a && . /app/backend/.env && . /app/frontend/.env && set +a && pytest backend/tests/test_reopen_reissue.py -n 0`. Frontend testids: diploma-reissue-bar, diploma-select-all, diploma-reissue-selected, diploma-reissue-{id}, diploma-select-{id}, reopen-final-{enrollmentId}, verify-diploma-annulled, verify-replaced-by, verify-diploma-valid, verify-code. localStorage auth key is 'otec_token' (not 'token'). SPA route for Diplomas page is /diplomas (not /certificados).",
+  "rca of the issue": "N/A — feature implementation matches spec on both backend and frontend."
+}
