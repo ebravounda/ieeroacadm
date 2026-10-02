@@ -1,0 +1,89 @@
+# HERRAMIENTAS DIGITALES E INTELIGENCIA ARTIFICIAL PARA LA GESTIÓN ADMINISTRATIVA
+**Duración:** 32 horas
+**Modalidad:** E-learning / Presencial / Mixta
+---
+# MÓDULO 1
+## Competencias digitales y organización del entorno de trabajo
+### Objetivo del módulo
+Utilizar correctamente las herramientas básicas del computador.
+### Lección 1. El computador como herramienta de trabajo
+**Hardware:** corresponde a los componentes físicos del equipo.
+Ejemplos:
+- Monitor.
+- Teclado.
+### Buenas prácticas para nombrar archivos
+Evitar:
+`documento nuevo final final2.pdf`
+### Actividad práctica
+Crear la siguiente estructura:
+EMPRESA DEMO
+→ Clientes
+### Material audiovisual
+Curso de Windows 11 enfocado al Explorador de archivos:
+[Curso Windows 11 desde cero – Explorador de archivos](https://www.youtube.com/watch?v=3IFNhYiFONU\&utm_source=chatgpt.com)
+### Evaluación módulo 1
+1. ¿Cuál es la diferencia entre hardware y software?
+**Respuesta correcta: C.**
+---
+# MÓDULO 2
+## Microsoft Word aplicado al trabajo administrativo
+### Objetivo
+Crear documentos administrativos profesionales.
+### Lección 1. Introducción a Word
+Herramientas principales:
+- Fuente.
+- Negrita.Lección&#x20;
+2\. Formato de texto
+- Cursiva.
+### Lección 4. Tablas
+| Cliente       | Factura | Fecha      | Estado    |
+| ------------- | ------- | ---------- | --------- |
+| Empresa Norte | F-102   | 01/10/2026 | Pagada    |
+Microsoft permite insertar tablas desde la pestaña **Insertar > Tabla**.
+### Recursos
+[Curso y guía oficial de Microsoft Word](https://support.microsoft.com/es-es/word/training/create-a-document-in-word?utm_source=chatgpt.com)
+[Crear tablas en Microsoft Word](https://support.microsoft.com/es-es/word/training/insert-a-table?utm_source=chatgpt.com)
+### Evaluación
+El participante deberá crear un documento administrativo.
+---
+# MÓDULO 3
+## Microsoft Excel para la gestión administrativa
+### Objetivo
+Utilizar hojas de cálculo.
+### Lección 4. Funciones
+#### SUMA
+`=SUMA(B2:B20)`
+Suma los valores.
+### Video recomendado
+[Curso de Excel para principiantes – HubSpot Español](https://www.youtube.com/watch?v=stRd64hplfQ\&utm_source=chatgpt.com)
+### Evaluación práctica
+El alumno deberá construir un registro de facturas.
+---
+# MÓDULO 8
+## Inteligencia Artificial aplicada a la gestión administrativa
+### Objetivo
+Utilizar herramientas de IA.
+### Lección 3. Aplicaciones administrativas
+La IA puede ayudar a:
+- redactar correos;
+### Ejercicio 1
+Transformar:
+`dile al cliente que debe plata`
+---
+# MÓDULO 9
+## Evaluación práctica final
+El participante deberá resolver un caso completo de administración empresarial.
+### Caso
+Usted trabaja como asistente administrativo.
+### Tarea 1 — Organización
+Crear carpetas.
+---
+# EVALUACIÓN DEL CURSO
+Evaluaciones por módulo:
+**40 %**
+---
+# CERTIFICACIÓN
+El participante que cumpla los requisitos...
+---
+# METODOLOGÍA
+**30 % contenidos conceptuales.**
