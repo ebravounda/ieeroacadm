@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { UserPlus, Upload } from "lucide-react";
+import { UserPlus, Upload, Pencil } from "lucide-react";
 import { api, errMsg, fmtDate } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
@@ -88,6 +88,32 @@ function ImportDialog({ courses, onDone }) {
   );
 }
 
+function EditUserDialog({ user, onDone }) {
+  const [open, setOpen] = useState(false);
+  const [f, setF] = useState({ nombre: "", apellidos: "", rut: "" });
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const onOpen = (o) => { setOpen(o); if (o) setF({ nombre: user.nombre || "", apellidos: user.apellidos || "", rut: user.rut || "" }); };
+  const save = (e) => {
+    e.preventDefault();
+    api.put(`/users/${user.id}`, f).then(() => { toast.success("Datos actualizados"); setOpen(false); onDone(); }).catch((err) => toast.error(errMsg(err)));
+  };
+  return (
+    <Dialog open={open} onOpenChange={onOpen}>
+      <DialogTrigger asChild><Button size="sm" variant="ghost" data-testid={`edit-user-${user.id}`}><Pencil size={14} className="mr-1" /> Editar</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Editar datos de {user.email}</DialogTitle></DialogHeader>
+        <form onSubmit={save} className="grid grid-cols-2 gap-3">
+          <div><Label>Nombres</Label><Input required value={f.nombre} onChange={set("nombre")} data-testid="edit-user-nombre" /></div>
+          <div><Label>Apellidos</Label><Input value={f.apellidos} onChange={set("apellidos")} data-testid="edit-user-apellidos" /></div>
+          <div className="col-span-2"><Label>RUT</Label><Input value={f.rut} onChange={set("rut")} placeholder="12.345.678-9" data-testid="edit-user-rut" /></div>
+          <p className="col-span-2 text-xs text-slate-500">Los diplomas nuevos usarán estos datos. Los ya emitidos mantienen el nombre con que se generaron.</p>
+          <Button type="submit" className="col-span-2" data-testid="edit-user-save">Guardar cambios</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EnrollDialog({ user, courses, onDone }) {
   const [course, setCourse] = useState(null);
   const run = () => api.post("/enrollments", { user_id: user.id, course_id: course }).then(() => { toast.success("Matriculado"); onDone(); }).catch((e) => toast.error(errMsg(e)));
@@ -132,6 +158,7 @@ export default function Students() {
                 <TableCell><Badge variant={u.active ? "secondary" : "destructive"}>{u.role}{!u.active && " · inactivo"}</Badge></TableCell>
                 <TableCell className="text-xs text-slate-500">{fmtDate(u.last_login)}</TableCell>
                 <TableCell className="text-right space-x-2 whitespace-nowrap">
+                  {isAdmin && <EditUserDialog user={u} onDone={load} />}
                   {u.role === "estudiante" && <EnrollDialog user={u} courses={courses} onDone={load} />}
                   {isAdmin && u.id !== me.id && <Button size="sm" variant="ghost" onClick={() => toggle(u)} data-testid={`toggle-user-${u.id}`}>{u.active ? "Desactivar" : "Activar"}</Button>}
                 </TableCell>

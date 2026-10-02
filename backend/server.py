@@ -467,7 +467,9 @@ async def add_user(body: UserIn, _=Depends(admin_only)):
 
 @api.put("/users/{user_id}")
 async def update_user(user_id: str, body: UserUpdate, _=Depends(admin_only)):
-    upd = {k: v for k, v in body.model_dump().items() if v is not None}
+    upd = {k: (v.strip() if isinstance(v, str) else v) for k, v in body.model_dump().items() if v is not None}
+    if "nombre" in upd and not upd["nombre"]:
+        raise HTTPException(400, "El nombre es obligatorio")
     await db.users.update_one({"id": user_id}, {"$set": upd})
     u = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not u:
