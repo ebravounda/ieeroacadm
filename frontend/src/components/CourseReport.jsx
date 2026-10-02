@@ -8,8 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 const COLS = [
   ["Apellidos", (r) => r.apellidos], ["Nombres", (r) => r.nombre], ["RUT", (r) => r.rut], ["Correo", (r) => r.email],
   ["Fecha matrícula", (r) => fmtDay(r.enrolled_at)], ["Tipo matrícula", (r) => r.method],
-  ["Último acceso", (r) => (r.last_access ? fmtDate(r.last_access) : "")], ["Días conectado", (r) => r.days_attended],
-  ["Permanencia (min)", (r) => r.total_minutes], ["Clases en vivo asistidas", (r) => `${r.live_attended}/${r.live_total}`],
+  ["Último acceso", (r) => (r.last_access ? fmtDate(r.last_access) : "")], ["Días conectado al curso", (r) => r.days_attended],
+  ["Permanencia en el curso (min)", (r) => r.total_minutes], ["Días en plataforma (total)", (r) => r.platform_days],
+  ["Permanencia en plataforma (min, total)", (r) => r.platform_minutes], ["Clases en vivo asistidas", (r) => `${r.live_attended}/${r.live_total}`],
   ["% asistencia clases", (r) => (r.live_pct ?? "")], ["Módulos aprobados", (r) => `${r.modules_done}/${r.modules_total}`],
   ["% avance", (r) => r.progress], ["Nota promedio módulos", (r) => fmtNota(r.modules_avg_nota)],
   ["Nota examen final", (r) => fmtNota(r.final_nota)], ["Nota final curso", (r) => fmtNota(r.overall_nota)],
@@ -46,7 +47,7 @@ export default function CourseReport({ courseId }) {
       <div className="bg-white border rounded-xl overflow-x-auto">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Estudiante</TableHead><TableHead className="text-right">Días</TableHead><TableHead className="text-right">Permanencia</TableHead>
+            <TableHead>Estudiante</TableHead><TableHead className="text-right">Días en curso</TableHead><TableHead className="text-right">Permanencia en curso</TableHead>
             <TableHead className="text-right">Clases</TableHead><TableHead className="text-right">Módulos</TableHead>
             <TableHead className="text-right">Prom. mód.</TableHead><TableHead className="text-right">Ex. final</TableHead><TableHead className="text-right">Nota final</TableHead><TableHead>Estado</TableHead>
           </TableRow></TableHeader>
@@ -56,7 +57,7 @@ export default function CourseReport({ courseId }) {
               <TableRow key={r.email} data-testid="course-report-row">
                 <TableCell><p className="font-medium">{r.student_name}</p><p className="text-xs text-slate-500">{r.rut ? `${r.rut} · ` : ""}{r.email}</p></TableCell>
                 <TableCell className="text-right font-mono">{r.days_attended}</TableCell>
-                <TableCell className="text-right font-mono">{r.total_minutes} min</TableCell>
+                <TableCell className="text-right font-mono" data-testid="course-report-minutes">{r.total_minutes} min<p className="text-[10px] text-slate-400">{r.platform_minutes} min total</p></TableCell>
                 <TableCell className="text-right font-mono">{r.live_attended}/{r.live_total}</TableCell>
                 <TableCell className="text-right font-mono">{r.modules_done}/{r.modules_total}</TableCell>
                 <TableCell className="text-right font-mono">{fmtNota(r.modules_avg_nota)}</TableCell>

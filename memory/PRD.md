@@ -43,6 +43,7 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Inactivity alerts: daily cron 10:00 America/Santiago → POST /api/cron/inactivity-alerts; emails students with unfinished courses and no activity in 7 days (max 1 alert / 7 days, includes next step).
 - OTEC/SENCE course report tab in CourseEditor (GET /api/courses/{id}/report) + CSV export.
 - Attendance certificates per finished live class (POST /api/live-classes/{id}/certificate, /certificado-asistencia/:code, public /verificar-asistencia/:code with QR).
+- Per-course time tracking: heartbeat sends course_id/module_id from current route → db.course_sessions; OTEC report shows days/minutes per course plus platform totals.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

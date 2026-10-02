@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, GraduationCap } from "lucide-react";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { api } from "@/lib/api";
@@ -17,9 +17,19 @@ const NAV = [
   { to: "/configuracion", label: "Configuración", icon: Settings, roles: ["admin"] },
 ];
 
+function contextOf(path) {
+  const c = path.match(/^\/curso\/([^/]+)/);
+  if (c) return { course_id: c[1] };
+  const m = path.match(/^\/modulo\/([^/]+)/);
+  return m ? { module_id: m[1] } : {};
+}
+
 function useHeartbeat() {
+  const { pathname } = useLocation();
+  const path = useRef(pathname);
+  path.current = pathname;
   useEffect(() => {
-    const beat = () => document.visibilityState === "visible" && api.post("/activity/heartbeat").catch(() => {});
+    const beat = () => document.visibilityState === "visible" && api.post("/activity/heartbeat", contextOf(path.current)).catch(() => {});
     beat();
     const t = setInterval(beat, 60000);
     return () => clearInterval(t);

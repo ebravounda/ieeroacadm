@@ -349,19 +349,33 @@ async def logout(response: Response):
 
 
 # ---------------- Activity (attendance / permanence) ----------------
-@api.post("/activity/heartbeat")
-async def heartbeat(user=Depends(get_current_user)):
-    t = now()
-    date = t.date().isoformat()
-    sess = await db.sessions.find_one({"user_id": user["id"], "date": date})
+class HeartbeatIn(BaseModel):
+    course_id: Optional[str] = None
+    module_id: Optional[str] = None
+
+
+async def track_time(coll, key: dict, t):
+    sess = await coll.find_one(key)
     if sess:
         gap = (t - datetime.fromisoformat(sess["last_seen"])).total_seconds()
-        add = int(min(max(gap, 0), 90))
-        await db.sessions.update_one({"_id": sess["_id"]}, {"$set": {"last_seen": t.isoformat()},
-                                                            "$inc": {"duration_sec": add}})
+        await coll.update_one({"_id": sess["_id"]}, {"$set": {"last_seen": t.isoformat()},
+                                                     "$inc": {"duration_sec": int(min(max(gap, 0), 90))}})
     else:
-        await db.sessions.insert_one({"id": new_id(), "user_id": user["id"], "date": date,
-                                      "started_at": t.isoformat(), "last_seen": t.isoformat(), "duration_sec": 0})
+        await coll.insert_one({"id": new_id(), **key, "started_at": t.isoformat(), "last_seen": t.isoformat(),
+                               "duration_sec": 0})
+
+
+@api.post("/activity/heartbeat")
+async def heartbeat(body: Optional[HeartbeatIn] = None, user=Depends(get_current_user)):
+    t = now()
+    date = t.date().isoformat()
+    await track_time(db.sessions, {"user_id": user["id"], "date": date}, t)
+    course_id = body.course_id if body else None
+    if body and body.module_id and not course_id:
+        m = await db.modules.find_one({"id": body.module_id}, {"_id": 0, "course_id": 1})
+        course_id = m["course_id"] if m else None
+    if course_id and await db.enrollments.find_one({"user_id": user["id"], "course_id": course_id}):
+        await track_time(db.course_sessions, {"user_id": user["id"], "course_id": course_id, "date": date}, t)
     return {"ok": True}
 
 
@@ -1111,6 +1125,8 @@ async def course_report(course_id: str, _=Depends(staff_only)):
         if not u:
             continue
         sess = await db.sessions.find({"user_id": u["id"]}, {"_id": 0, "duration_sec": 1}).to_list(5000)
+        csess = await db.course_sessions.find({"user_id": u["id"], "course_id": course_id},
+                                              {"_id": 0, "duration_sec": 1}).to_list(5000)
         live = await db.live_attendance.count_documents({"user_id": u["id"], "class_id": {"$in": class_ids}})
         g = course_grades(e, course, modules)
         done = len([m for m in modules if m["id"] in e["completed_modules"]])
@@ -1118,7 +1134,8 @@ async def course_report(course_id: str, _=Depends(staff_only)):
         rows.append({"student_name": f"{u['nombre']} {u['apellidos']}", "nombre": u["nombre"], "apellidos": u["apellidos"],
                      "rut": u.get("rut", ""), "email": u["email"], "enrolled_at": e["enrolled_at"],
                      "method": e.get("method", ""), "last_access": last.isoformat() if last else None,
-                     "days_attended": len(sess), "total_minutes": round(sum(x["duration_sec"] for x in sess) / 60),
+                     "days_attended": len(csess), "total_minutes": round(sum(x["duration_sec"] for x in csess) / 60),
+                     "platform_days": len(sess), "platform_minutes": round(sum(x["duration_sec"] for x in sess) / 60),
                      "live_attended": live, "live_total": len(class_ids),
                      "live_pct": round(live / len(class_ids) * 100) if class_ids else None,
                      "modules_done": done, "modules_total": len(modules),
@@ -1264,6 +1281,7 @@ async def startup():
     await db.otp_codes.create_index("expires_at", expireAfterSeconds=0)
     await db.diplomas.create_index("code", unique=True)
     await db.sessions.create_index([("user_id", 1), ("date", 1)])
+    await db.course_sessions.create_index([("user_id", 1), ("course_id", 1), ("date", 1)])
     try:
         await asyncio.to_thread(init_storage)
     except Exception as e:
