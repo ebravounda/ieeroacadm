@@ -1,0 +1,35 @@
+{
+  "summary": "Verified Términos y Condiciones + Política de Privacidad per Chile/Spain law. Backend 15/15 pytest cases pass (added test_checkout_rejects_without_accept_terms; patched existing checkout tests to send accept_terms:true; verified user.terms_accepted_at is persisted). Frontend: footer-terms-link and footer-privacy-link render on landing and navigate to /terminos (legal-page-terminos) and /privacidad (legal-page-privacidad) with legal-title visible; legal-back-link returns to /; mobile 390px renders legal page correctly. Enroll dialog: enroll-accept-terms checkbox present; enroll-submit stays disabled until form is filled AND checkbox is checked; after check, submit enables and free-course enrollment flows to /pago/resultado with status '¡Inscripción confirmada!'. Regression: landing-partners still shows 5 logos (AWS, Tramilex, GoRoky, Openfactura, Inmo Tramilex).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Legal pages", "issues": ["Contact email intentional placeholder '[correo de contacto]' remains visible in body text; main agent should replace with real email before go-live."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_landing_payments.py",
+    "/app/test_reports/pytest/landing_payments.xml"
+  ],
+  "action_items": [
+    "Replace placeholder '[correo de contacto]' in Legal.jsx with real contact email before launch.",
+    "Consider adding DialogDescription/aria-describedby to the enroll dialog (carry-over from iteration_6)."
+  ],
+  "critical_code_review_comments": [
+    "shop.py CheckoutIn.accept_terms defaults to False and server raises 400 before any user/payment creation if missing/false — correct ordering, no side effects on refusal.",
+    "terms_accepted_at timestamp is written AFTER the acceptance check and only on successful branch (good).",
+    "Legal.jsx is static and self-contained; TERMS/PRIVACY arrays hard-coded in JSX — if content changes frequently, consider moving to a CMS/collection, but acceptable for current MVP.",
+    "The enrollment checkbox uses both HTML `required` and `disabled` on submit — defensive and correct.",
+    "Footer links use react-router <Link>, so legal pages load without full reload (good)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_landing_payments.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin test-admin-1 JWT via: cd /app/backend && python3 -c \"from core import create_token;print(create_token('test-admin-1'))\". Test fixture seed_test_data auto-creates test-admin-1 user, test-c1 (49900 paid, show_on_landing), test-c2 (free, show_on_landing), and fake Flow keys (FAKE-KEY/fakesecret123) during pytest module scope and cleans up after.",
+  "seed_data_creation": "Transient per-test seed via module fixture; test courses & admin user & fake flow keys. Cleaned up delivered+uitest*@resend.dev user + enrollments + payments after Playwright run; test courses deleted post-run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "If re-running Playwright on landing, remember the pytest fixture deletes test-c1/test-c2 after the backend run. Re-seed them with show_on_landing=true,published=true before UI test, or re-run the fixture only when needed. Flow endpoints are tested with fake credentials; real sandbox keys still required for full paid-path verification."
+}
