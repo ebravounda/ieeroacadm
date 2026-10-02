@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from core import db, new_id
-from server import staff_only
+from server import staff_only, next_order
 
 router = APIRouter()
 
@@ -144,7 +144,7 @@ async def import_modules(course_id: str, body: ImportIn, _=Depends(staff_only)):
     summary = [{"title": m["title"], "sections": [s["title"] for s in m["sections"]], "contents": len(m["materials"])} for m in mods]
     if body.dry_run:
         return {"modules": summary}
-    count = await db.modules.count_documents({"course_id": course_id})
+    count = await next_order(course_id) - 1
     for i, m in enumerate(mods):
         mats = [{"body": "", "url": "", "file_id": "", "file_name": "", "content_type": "", **x} for x in m["materials"]]
         await db.modules.insert_one({"id": new_id(), "course_id": course_id, "order": count + i + 1, "video_url": "",

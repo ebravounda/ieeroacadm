@@ -12,7 +12,7 @@ function ModuleRow({ m, i }) {
   const icon = m.completed ? <CheckCircle2 className="text-emerald-600" /> : m.unlocked ? <PlayCircle className="text-teal-600" /> : <Lock className="text-slate-400" />;
   const body = (
     <div className={`flex items-center gap-4 bg-white border rounded-xl p-5 transition-[transform,box-shadow] ${m.unlocked ? "hover:shadow-md hover:-translate-y-0.5" : "opacity-60"}`}>
-      <span className="font-heading font-bold text-slate-300 text-2xl w-8">{String(i + 1).padStart(2, "0")}</span>
+      <span className="font-heading font-bold text-slate-300 text-2xl w-8">{String(m.order ?? i + 1).padStart(2, "0")}</span>
       <div className="flex-1"><p className="font-semibold">{m.title}</p><p className="text-sm text-slate-500">{m.description}</p></div>
       {icon}
     </div>

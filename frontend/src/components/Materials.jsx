@@ -139,6 +139,7 @@ function OfficeViewer({ m }) {
 export function MaterialBody({ m }) {
   if (m.type === "texto") return <div className="whitespace-pre-wrap leading-relaxed text-slate-700">{m.body}</div>;
   const instr = m.body && <p className="text-sm text-slate-600 mb-3">{m.body}</p>;
+  if (m.type === "video" && !m.file_id && /\.(mp4|webm|mov)$/i.test(m.url || "")) return <>{instr}<video src={m.url} controls className="w-full rounded-lg bg-black" data-testid={`material-video-${m.id}`} /></>;
   if (m.type === "video" && !m.file_id) return <>{instr}<div className="aspect-video rounded-lg overflow-hidden bg-black"><iframe title={m.title} src={embedUrl(m.url)} className="w-full h-full" allowFullScreen /></div></>;
   if (m.type === "enlace") return <>{instr}<a href={m.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-teal-700 hover:underline"><ExternalLink size={14} /> Abrir enlace</a></>;
   if (!m.file_id) return <p className="text-sm text-slate-400">Archivo no disponible</p>;

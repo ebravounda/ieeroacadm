@@ -313,6 +313,34 @@ def course_grades(e, course, modules):
             "overall_pct": overall, "overall_nota": to_nota(overall, exig)}
 
 
+WELCOME_SECTION = "bienvenida"
+
+
+def welcome_module(course_id):
+    return {"id": new_id(), "course_id": course_id, "order": 0, "welcome": True, "title": "Bienvenida al curso",
+            "description": "Bienvenida al alumno/a", "content": "", "video_url": "", "min_minutes": 0,
+            "sections": [{"id": WELCOME_SECTION, "title": "Bienvenida al alumno/a", "description": ""}],
+            "materials": [{"id": new_id(), "type": "video", "title": "Video de bienvenida", "url": "/bienvenida.mp4",
+                           "body": "Mira el video completo y luego márcalo como visto para desbloquear el Módulo 1.",
+                           "file_id": "", "file_name": "", "content_type": "", "section_id": WELCOME_SECTION}],
+            "quiz": Quiz().model_dump()}
+
+
+async def ensure_welcome(course_id):
+    if await db.modules.find_one({"course_id": course_id, "welcome": True}):
+        return
+    m = welcome_module(course_id)
+    await db.modules.insert_one(m)
+    await db.enrollments.update_many({"course_id": course_id, "$or": [{"completed_modules.0": {"$exists": True}},
+                                                                     {"final_passed": True}]},
+                                     {"$addToSet": {"completed_modules": m["id"]}})
+
+
+async def next_order(course_id):
+    last = await db.modules.find_one({"course_id": course_id}, {"_id": 0, "order": 1}, sort=[("order", -1)])
+    return (last["order"] if last else 0) + 1
+
+
 def module_status(modules, completed):
     out, prev_done = [], True
     for m in modules:
@@ -551,6 +579,7 @@ async def create_course(body: CourseIn, user=Depends(staff_only)):
            "final_exam": Quiz().model_dump()}
     await db.courses.insert_one(doc)
     doc.pop("_id", None)
+    await ensure_welcome(doc["id"])
     return doc
 
 
@@ -602,9 +631,8 @@ async def get_course(course_id: str, user=Depends(get_current_user)):
 
 @api.post("/courses/{course_id}/modules")
 async def add_module(course_id: str, body: ModuleIn, _=Depends(staff_only)):
-    count = await db.modules.count_documents({"course_id": course_id})
     doc = {"id": new_id(), "course_id": course_id, **body.model_dump()}
-    doc["order"] = body.order if body.order is not None else count + 1
+    doc["order"] = body.order if body.order is not None else await next_order(course_id)
     await db.modules.insert_one(doc)
     doc.pop("_id", None)
     return doc
@@ -621,6 +649,8 @@ async def update_module(module_id: str, body: ModuleIn, _=Depends(staff_only)):
 
 @api.delete("/modules/{module_id}")
 async def delete_module(module_id: str, _=Depends(staff_only)):
+    if await db.modules.find_one({"id": module_id, "welcome": True}):
+        raise HTTPException(400, "El Módulo 0 de bienvenida no se puede eliminar")
     await db.modules.delete_one({"id": module_id})
     return {"ok": True}
 
@@ -1597,6 +1627,8 @@ async def startup():
         await asyncio.to_thread(init_storage)
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
+    async for c in db.courses.find({}, {"_id": 0, "id": 1}):
+        await ensure_welcome(c["id"])
     meta = await db.app_meta.find_one({"id": "public"})
     if meta:
         core.PUBLIC_BASE = meta["base"]

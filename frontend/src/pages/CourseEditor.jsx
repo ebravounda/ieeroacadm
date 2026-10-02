@@ -64,10 +64,10 @@ function ModulesTab({ course, reload }) {
     <div className="space-y-3">
       {course.modules.map((m, i) => (
         <div key={m.id} className="bg-white border rounded-xl p-5 flex items-center gap-4" data-testid={`editor-module-${i}`}>
-          <span className="h-10 w-10 rounded-lg bg-teal-50 text-teal-700 font-heading font-bold grid place-items-center">{i + 1}</span>
+          <span className="h-10 w-10 rounded-lg bg-teal-50 text-teal-700 font-heading font-bold grid place-items-center">{course.modules[0]?.welcome ? i : i + 1}</span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold">{m.title}</p>
-            <p className="text-xs text-slate-500">{m.sections?.length || 1} secciones · {m.materials?.length || 0} contenidos · {m.quiz?.questions?.length || 0} preguntas · aprobación {m.quiz?.pass_score ?? 75}% {m.min_minutes > 0 && `· mín. ${m.min_minutes} min `}{i > 0 && <>· <Lock size={10} className="inline" /> requiere módulo {i}</>}</p>
+            <p className="text-xs text-slate-500">{m.sections?.length || 1} secciones · {m.materials?.length || 0} contenidos · {m.quiz?.questions?.length || 0} preguntas · aprobación {m.quiz?.pass_score ?? 75}% {m.min_minutes > 0 && `· mín. ${m.min_minutes} min `}{i > 0 && <>· <Lock size={10} className="inline" /> requiere módulo {course.modules[0]?.welcome ? i - 1 : i}</>}</p>
           </div>
           <Button size="icon" variant="ghost" onClick={() => setEditing(m)} data-testid={`edit-module-${i}`}><Pencil size={16} /></Button>
           <Button size="icon" variant="ghost" onClick={() => del(m.id)} data-testid={`delete-module-${i}`}><Trash2 size={16} /></Button>
