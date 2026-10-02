@@ -18,7 +18,14 @@ export default function VerifyDiploma() {
             <h1 className="text-2xl font-bold mt-4">Diploma no válido</h1>
             <p className="text-slate-500 mt-2">El código <span className="font-mono">{code}</span> no corresponde a ningún diploma emitido.</p>
           </div>
-        ) : !d ? <p className="text-slate-500">Verificando…</p> : (
+        ) : !d ? <p className="text-slate-500">Verificando…</p> : d.annulled ? (
+          <div className="text-center" data-testid="verify-diploma-annulled">
+            <ShieldX size={48} className="mx-auto text-amber-600" />
+            <h1 className="text-2xl font-bold mt-4">Certificado anulado</h1>
+            <p className="text-slate-500 mt-2">El código <span className="font-mono">{d.code}</span> fue anulado{d.annulled_at ? ` el ${fmtDay(d.annulled_at)}` : ""}{d.replaced_by ? " y reemplazado por una nueva emisión." : "."}</p>
+            {d.replaced_by && <a href={`/verificar/${d.replaced_by}`} className="mt-4 inline-block text-teal-700 font-semibold hover:underline" data-testid="verify-replaced-by">Ver certificado vigente ({d.replaced_by})</a>}
+          </div>
+        ) : (
           <div data-testid="verify-diploma-valid">
             <ShieldCheck size={48} className="text-emerald-600" />
             <h1 className="text-2xl font-bold mt-4">Certificado verificado</h1>

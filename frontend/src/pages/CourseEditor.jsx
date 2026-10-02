@@ -100,6 +100,8 @@ function EnrollmentsTab({ courseId }) {
   const load = () => api.get(`/courses/${courseId}/enrollments`).then((r) => setRows(r.data));
   useEffect(() => { load(); }, [courseId]); // eslint-disable-line
   const remove = (id) => window.confirm("¿Quitar matrícula?") && api.delete(`/enrollments/${id}`).then(load);
+  const reopen = (r) => window.confirm(`¿Reabrir el examen final de ${r.student_name}? Podrá rendirlo de nuevo sin cursar los módulos y se eliminará su diploma de este curso, si lo tiene.`)
+    && api.post(`/enrollments/${r.id}/reopen-final`).then(() => { toast.success("Examen final reabierto"); load(); }).catch((e) => toast.error(errMsg(e)));
   return (
     <div className="bg-white border rounded-xl divide-y" data-testid="course-enrollments">
       {rows.length === 0 && <p className="p-6 text-slate-500">Sin estudiantes matriculados.</p>}
@@ -107,6 +109,7 @@ function EnrollmentsTab({ courseId }) {
         <div key={r.id} className="p-4 flex items-center gap-4">
           <div className="flex-1"><p className="font-medium">{r.student_name}</p><p className="text-xs text-slate-500">{r.email} · matrícula {r.method} · {fmtDate(r.enrolled_at)}</p></div>
           <div className="w-40"><Progress value={r.progress} className="h-2" /><p className="text-xs text-slate-500 mt-1">{r.progress}% {r.final_passed && "· Aprobado"}</p></div>
+          {user.is_super && <Button size="sm" variant="outline" onClick={() => reopen(r)} data-testid={`reopen-final-${r.id}`}>Reabrir examen final</Button>}
           {user.role === "admin" && <Button size="sm" variant="ghost" onClick={() => remove(r.id)} data-testid={`remove-enrollment-${r.id}`}>Quitar</Button>}
         </div>
       ))}

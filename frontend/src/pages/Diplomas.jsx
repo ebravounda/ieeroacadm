@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Award, Check, X, Hourglass, CheckCheck } from "lucide-react";
+import { Award, Check, X, Hourglass, CheckCheck, RefreshCw } from "lucide-react";
 import { api, errMsg, fmtDay, fmtNota } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, Empty } from "@/components/Common";
@@ -90,8 +90,51 @@ function BulkBar({ pending, selected, setSelected, onDone }) {
   );
 }
 
-function StaffView({ rows, canApprove, reload }) {
+function IssuedItem({ d, canReissue, checked, onCheck, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const reissue = async () => {
+    if (!window.confirm(`¿Reemitir el certificado de ${d.student_name} con el diseño actual? El código ${d.code} quedará anulado.`)) return;
+    setBusy(true);
+    try { const { data } = await api.post(`/diplomas/${d.id}/reissue`); toast.success(`Reemitido con código ${data.code}`); onDone(); }
+    catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  };
+  if (!canReissue) return <Card d={d} />;
+  return (
+    <div className="space-y-2">
+      <Card d={d} />
+      <div className="flex items-center gap-2">
+        <Checkbox checked={checked} onCheckedChange={onCheck} data-testid={`diploma-select-${d.id}`} />
+        <Button size="sm" variant="outline" onClick={reissue} disabled={busy} data-testid={`diploma-reissue-${d.id}`}><RefreshCw size={14} className={`mr-1 ${busy ? "animate-spin" : ""}`} /> {busy ? "Reemitiendo…" : "Reemitir"}</Button>
+      </div>
+    </div>
+  );
+}
+
+function ReissueBar({ issued, selected, setSelected, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    if (!window.confirm(`¿Reemitir ${selected.length} certificado(s) con el diseño actual? Los códigos anteriores quedarán anulados.`)) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post("/diplomas/reissue-bulk", { ids: selected });
+      toast.success(`${data.reissued} certificado(s) reemitidos`);
+      if (data.errors.length) toast.error(`No se pudieron reemitir: ${data.errors.join(", ")}`);
+      setSelected([]); onDone();
+    } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 mb-4 bg-slate-50 rounded-xl border" data-testid="diploma-reissue-bar">
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <Checkbox checked={issued.length > 0 && selected.length === issued.length} onCheckedChange={(v) => setSelected(v ? issued.map((d) => d.id) : [])} data-testid="diploma-select-all" /> Seleccionar todos
+      </label>
+      <Button size="sm" className="ml-auto" disabled={!selected.length || busy} onClick={run} data-testid="diploma-reissue-selected"><RefreshCw size={14} className="mr-1" /> {busy ? "Reemitiendo…" : `Reemitir seleccionados (${selected.length})`}</Button>
+    </div>
+  );
+}
+
+function StaffView({ rows, canApprove, canReissue, reload }) {
   const [selected, setSelected] = useState([]);
+  const [picked, setPicked] = useState([]);
   const pending = rows.filter((d) => statusOf(d) !== "aprobado");
   const issued = rows.filter((d) => statusOf(d) === "aprobado");
   return (
@@ -112,7 +155,11 @@ function StaffView({ rows, canApprove, reload }) {
       </TabsContent>
       <TabsContent value="issued">
         {issued.length === 0 ? <Empty text="Aún no hay certificados emitidos." testId="diplomas-empty" />
-          : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{issued.map((d) => <Card key={d.id} d={d} />)}</div>}
+          : <>
+            {canReissue && <ReissueBar issued={issued} selected={picked.filter((id) => issued.some((d) => d.id === id))} setSelected={setPicked} onDone={reload} />}
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{issued.map((d) => <IssuedItem key={d.id} d={d} canReissue={canReissue} onDone={reload} checked={picked.includes(d.id)}
+              onCheck={(v) => setPicked(v ? [...picked, d.id] : picked.filter((x) => x !== d.id))} />)}</div>
+          </>}
       </TabsContent>
     </Tabs>
   );
@@ -127,7 +174,7 @@ export default function Diplomas() {
   return (
     <>
       <PageHeader eyebrow="Certificación" title="Certificados" subtitle={staff ? "Aprueba las solicitudes de certificado de los alumnos que finalizaron su curso. Al aprobar, se genera el PDF y se envía al alumno por correo." : "Al finalizar un curso, tu certificado pasa a aprobación. Cuando se emite, lo recibes por correo y puedes descargarlo aquí."} />
-      {staff ? <StaffView rows={rows} canApprove={user.role === "admin"} reload={load} />
+      {staff ? <StaffView rows={rows} canApprove={user.role === "admin"} canReissue={!!user.is_super} reload={load} />
         : rows.length === 0 ? <Empty text="Aún no tienes certificados." testId="diplomas-empty" />
         : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{rows.map((d) => <Card key={d.id} d={d} />)}</div>}
     </>

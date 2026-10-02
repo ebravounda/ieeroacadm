@@ -31,6 +31,17 @@ api = APIRouter(prefix="/api")
 STAFF = ("admin", "docente")
 admin_only = require_roles("admin")
 staff_only = require_roles(*STAFF)
+NOT_ANNULLED = {"status": {"$ne": "anulado"}}
+
+
+def is_super(u):
+    return u.get("role") == "admin" and u.get("email", "").lower() == os.environ["ADMIN_EMAIL"].lower()
+
+
+async def super_admin_only(user=Depends(admin_only)):
+    if not is_super(user) or user.get("impersonated_by"):
+        raise HTTPException(403, "Solo el super administrador")
+    return user
 
 
 # ---------------- Models ----------------
@@ -387,7 +398,7 @@ async def notify_admins_certificate(d):
 
 
 async def issue_diploma(user, course, nota=None):
-    existing = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"]}, {"_id": 0})
+    existing = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"], **NOT_ANNULLED}, {"_id": 0})
     if existing:
         return existing
     doc = {"id": new_id(), "code": approval_code(), "user_id": user["id"], "course_id": course["id"],
@@ -472,7 +483,8 @@ async def verify_code(body: VerifyIn, request: Request, response: Response):
 
 @api.get("/auth/me")
 async def me(user=Depends(get_current_user)):
-    return public_user(user) | ({"impersonated_by": user["impersonated_by"]} if user.get("impersonated_by") else {})
+    return public_user(user) | {"is_super": is_super(user) and not user.get("impersonated_by")} | (
+        {"impersonated_by": user["impersonated_by"]} if user.get("impersonated_by") else {})
 
 
 @api.post("/users/{user_id}/impersonate")
@@ -638,7 +650,8 @@ async def get_course(course_id: str, user=Depends(get_current_user)):
             m.update(st[m["id"]])
         course["final_unlocked"] = all(s["completed"] for s in st.values()) and len(modules) > 0
         course["grades"] = course_grades(e, {**course, "final_exam": {"pass_score": course["final_exam"]["pass_score"]}}, modules)
-        diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course_id}, {"_id": 0, "code": 1})
+        diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course_id, **NOT_ANNULLED},
+                                             {"_id": 0, "code": 1})
         course["diploma_code"] = diploma["code"] if diploma else None
     return course
 
@@ -752,8 +765,7 @@ async def apply_result(sub):
         return None
     if not sub["passed"]:
         mids = [m["id"] for m in await get_modules(sub["course_id"])]
-        await db.enrollments.update_one({"id": e["id"]}, {"$set": {"completed_modules": [], "completed_tasks": {},
-                                                                "module_results": {}}})
+        await db.enrollments.update_one({"id": e["id"]}, {"$set": {"completed_modules": [], "completed_tasks": {}}})
         await db.module_sessions.delete_many({"user_id": sub["user_id"], "module_id": {"$in": mids}})
         await db.quiz_draws.delete_many({"user_id": sub["user_id"], "course_id": sub["course_id"]})
         await db.submissions.update_one({"id": sub["id"]}, {"$set": {"course_reset": True}})
@@ -875,6 +887,20 @@ async def course_enrollments(course_id: str, _=Depends(staff_only)):
         r["email"] = u.get("email")
         r["progress"] = round(len(r["completed_modules"]) / total * 100) if total else 0
     return rows
+
+
+@api.post("/enrollments/{enrollment_id}/reopen-final")
+async def reopen_final(enrollment_id: str, admin=Depends(super_admin_only)):
+    e = await db.enrollments.find_one({"id": enrollment_id}, {"_id": 0})
+    if not e:
+        raise HTTPException(404, "Matrícula no encontrada")
+    mids = [m["id"] for m in await get_modules(e["course_id"])]
+    await db.enrollments.update_one({"id": enrollment_id}, {"$set": {
+        "final_passed": False, "final_score": None, "completed_at": None, "completed_modules": mids,
+        "final_reopened_at": now_iso(), "final_reopened_by": admin["id"]}})
+    removed = await db.diplomas.delete_many({"user_id": e["user_id"], "course_id": e["course_id"]})
+    await db.quiz_draws.delete_many({"user_id": e["user_id"], "course_id": e["course_id"], "module_id": None})
+    return {"ok": True, "diplomas_removed": removed.deleted_count}
 
 
 @api.delete("/enrollments/{enrollment_id}")
@@ -1127,7 +1153,8 @@ async def my_progress(user=Depends(get_current_user)):
                 else:
                     text = f"Finaliza el módulo “{m['title']}”"
                 next_step = {"text": text, "link": f"/modulo/{m['id']}"}
-        diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"]}, {"_id": 0, "code": 1})
+        diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"], **NOT_ANNULLED},
+                                             {"_id": 0, "code": 1})
         if not next_step:
             if diploma:
                 next_step = {"text": "¡Curso aprobado! Descarga tu diploma", "link": f"/diploma/{diploma['code']}"}
@@ -1375,12 +1402,12 @@ async def write_settings(body: SettingsIn, _=Depends(admin_only)):
 
 @api.get("/my/diplomas")
 async def my_diplomas(user=Depends(get_current_user)):
-    return await db.diplomas.find({"user_id": user["id"]}, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(500)
+    return await db.diplomas.find({"user_id": user["id"], **NOT_ANNULLED}, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(500)
 
 
 @api.get("/diplomas")
 async def all_diplomas(_=Depends(staff_only)):
-    return await db.diplomas.find({}, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(5000)
+    return await db.diplomas.find(NOT_ANNULLED, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(5000)
 
 
 MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
@@ -1420,7 +1447,11 @@ MOTIVATION = [
 ]
 
 
-async def approve_one(d, base, admin_id, bg):
+class BulkApproveIn(BaseModel):
+    ids: List[str] = Field(min_length=1, max_length=200)
+
+
+async def approve_one(d, base, admin_id, bg, notify=True):
     d["approved_at"] = now_iso()
     s = await get_settings()
     pdf = await build_certificate_pdf(d, s, f"{base}/verificar/{d['code']}")
@@ -1428,12 +1459,49 @@ async def approve_one(d, base, admin_id, bg):
     upd = {"status": "aprobado", "approved_at": d["approved_at"], "approved_by": admin_id,
            "pdf_path": res["path"], "verify_url": f"{base}/verificar/{d['code']}", "reject_reason": ""}
     await db.diplomas.update_one({"id": d["id"]}, {"$set": upd})
-    bg.add_task(notify_student_certificate, {**d, **upd})
+    if notify:
+        bg.add_task(notify_student_certificate, {**d, **upd})
     return {**d, **upd}
 
 
-class BulkApproveIn(BaseModel):
-    ids: List[str] = Field(min_length=1, max_length=200)
+async def reissue_one(d, base, admin_id, bg):
+    u = await db.users.find_one({"id": d["user_id"]}, {"_id": 0}) or {}
+    c = await db.courses.find_one({"id": d["course_id"]}, {"_id": 0}) or {}
+    new = {k: v for k, v in d.items() if k not in ("pdf_path", "verify_url", "approved_at", "approved_by")}
+    new.update({"id": new_id(), "code": approval_code(), "status": "pendiente", "reissued_from": d["code"],
+                "student_name": f"{u.get('nombre', '')} {u.get('apellidos', '')}".strip() or d["student_name"],
+                "rut": u.get("rut", d.get("rut", "")), "course_title": c.get("title", d["course_title"]),
+                "hours": c.get("hours", d.get("hours", 0))})
+    await db.diplomas.insert_one(dict(new))
+    out = await approve_one(new, base, admin_id, bg, notify=False)
+    await db.diplomas.update_one({"id": d["id"]}, {"$set": {"status": "anulado", "annulled_at": now_iso(),
+                                                          "replaced_by": new["code"]}})
+    return out
+
+
+@api.post("/diplomas/reissue-bulk")
+async def reissue_bulk(body: BulkApproveIn, request: Request, bg: BackgroundTasks, admin=Depends(super_admin_only)):
+    base, done, errors = app_base(request), 0, []
+    for d in await db.diplomas.find({"id": {"$in": body.ids}, "status": "aprobado"}, {"_id": 0}).to_list(200):
+        try:
+            await reissue_one(d, base, admin["id"], bg)
+            done += 1
+        except Exception as ex:
+            logger.error(f"Reissue failed for {d['id']}: {ex}")
+            errors.append(d["student_name"])
+    return {"reissued": done, "errors": errors}
+
+
+@api.post("/diplomas/{diploma_id}/reissue")
+async def reissue_diploma(diploma_id: str, request: Request, bg: BackgroundTasks, admin=Depends(super_admin_only)):
+    d = await db.diplomas.find_one({"id": diploma_id, "status": "aprobado"}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Solo se pueden reemitir certificados emitidos")
+    try:
+        return await reissue_one(d, app_base(request), admin["id"], bg)
+    except Exception as ex:
+        logger.error(f"Reissue render failed: {ex}")
+        raise HTTPException(500, "No se pudo generar el PDF. Revisa la plantilla en Configuración.")
 
 
 @api.post("/diplomas/approve-bulk")
@@ -1541,6 +1609,9 @@ async def get_diploma(code: str, user=Depends(get_current_user)):
 @api.get("/public/verify/{code}")
 async def verify_diploma(code: str):
     d, s = await diploma_with_settings(code)
+    if d.get("status") == "anulado":
+        return {"valid": False, "annulled": True, "code": d["code"], "replaced_by": d.get("replaced_by"),
+                "annulled_at": d.get("annulled_at")}
     if d.get("status") != "aprobado":
         raise HTTPException(404, "Diploma no encontrado")
     return {"valid": True, "code": d["code"], "student_name": d["student_name"], "rut": d.get("rut", ""),
