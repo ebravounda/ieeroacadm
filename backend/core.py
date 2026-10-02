@@ -194,6 +194,19 @@ def otp_email_html(name: str, code: str) -> str:
     )
 
 
+def class_reminder_html(name, title, course, hora, platform) -> str:
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'<p>Hola {escape(name)}, te recordamos que tu clase en vivo está por comenzar.</p>'
+        f'<p style="font-size:20px;font-weight:bold;margin:8px 0">{escape(title)}</p>'
+        f'<p>Curso: {escape(course)}<br>Hora de inicio: <b>{escape(hora)} (hora de Chile)</b><br>Plataforma: {escape(platform)}</p>'
+        '<p>Ingresa a la plataforma y usa el botón “Abrir clase” en la sección Clases en vivo para unirte y registrar tu asistencia.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
 def grade_email_html(name, course, exam, nota, score, passed, feedback) -> str:
     nota_txt = f"{nota:.1f}".replace(".", ",")
     color = "#059669" if passed else "#e11d48"

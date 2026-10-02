@@ -1,0 +1,8 @@
+crons:
+  - name: class-reminders
+    description: "Envía recordatorio por correo a los estudiantes ~30 min antes de cada clase en vivo"
+    cron: "*/15 * * * *"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/class-reminders"
+    method: POST
+    enabled: true

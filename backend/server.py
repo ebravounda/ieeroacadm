@@ -1,6 +1,8 @@
 import csv
 import io
+import hmac
 import random
+from zoneinfo import ZoneInfo
 import secrets
 import asyncio
 import logging
@@ -13,7 +15,8 @@ from pydantic import BaseModel, EmailStr, Field
 
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
-                  get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token)
+                  get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token,
+                  class_reminder_html)
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -884,6 +887,102 @@ async def analytics_students(_=Depends(staff_only)):
                     "avg_nota": round(sum(notas) / len(notas), 1) if notas else None,
                     "ai_avg": round(sum(ai) / len(ai)) if ai else None})
     return out
+
+
+@api.get("/my/progress")
+async def my_progress(user=Depends(get_current_user)):
+    out = []
+    for e in await db.enrollments.find({"user_id": user["id"]}, {"_id": 0}).to_list(500):
+        course = await db.courses.find_one({"id": e["course_id"]}, {"_id": 0})
+        if not course:
+            continue
+        modules = await get_modules(course["id"])
+        status = {s["id"]: s for s in module_status(modules, e["completed_modules"])}
+        done_tasks = e.get("completed_tasks") or {}
+        rows, next_step = [], None
+        for m in modules:
+            st = status[m["id"]]
+            mats = m.get("materials", [])
+            pending = [x["title"] for x in mats if x["id"] not in done_tasks.get(m["id"], [])]
+            has_quiz = bool(m.get("quiz", {}).get("questions"))
+            last = await last_submission(user["id"], course["id"], m["id"]) if has_quiz else None
+            state = "completado" if st["completed"] else "en_curso" if st["unlocked"] else "bloqueado"
+            rows.append({"id": m["id"], "title": m["title"], "order": m["order"], "state": state,
+                         "tasks_total": len(mats), "tasks_done": len(mats) - len(pending),
+                         "pending_tasks": pending if state == "en_curso" else [], "has_quiz": has_quiz,
+                         "exam_status": last["status"] if last else None,
+                         "nota": to_nota(e.get("module_results", {}).get(m["id"]), m.get("quiz", {}).get("pass_score", 75))})
+            if state == "en_curso" and not next_step:
+                if last and last["status"] == "en_revision":
+                    text = f"Espera la corrección del examen de “{m['title']}”"
+                elif pending:
+                    text = f"Completa la tarea “{pending[0]}” de “{m['title']}”"
+                elif has_quiz:
+                    text = f"Rinde el examen de “{m['title']}”"
+                else:
+                    text = f"Finaliza el módulo “{m['title']}”"
+                next_step = {"text": text, "link": f"/modulo/{m['id']}"}
+        diploma = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"]}, {"_id": 0, "code": 1})
+        if not next_step:
+            if diploma:
+                next_step = {"text": "¡Curso aprobado! Descarga tu diploma", "link": f"/diploma/{diploma['code']}"}
+            elif modules:
+                last = await last_submission(user["id"], course["id"], None)
+                text = ("Espera la corrección de tu evaluación final" if last and last["status"] == "en_revision"
+                        else "Rinde la evaluación final del curso")
+                next_step = {"text": text, "link": f"/curso/{course['id']}/final"}
+            else:
+                next_step = {"text": "El curso aún no tiene módulos publicados", "link": f"/curso/{course['id']}"}
+        done = sum(1 for r in rows if r["state"] == "completado")
+        out.append({"course_id": course["id"], "title": course["title"], "code": course.get("code", ""),
+                    "progress": round(done / len(rows) * 100) if rows else 0, "modules": rows,
+                    "final_passed": e["final_passed"], "next_step": next_step,
+                    "grades": course_grades(e, course, modules)})
+    return out
+
+
+# ---------------- Cron: live class reminders ----------------
+async def send_class_reminders():
+    t = now()
+    for c in await db.live_classes.find({"reminded": {"$ne": True}}, {"_id": 0}).to_list(1000):
+        start = datetime.fromisoformat(c["start_at"])
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=t.tzinfo)
+        mins = (start - t).total_seconds() / 60
+        if mins > 40 or mins < 0:
+            continue
+        await db.live_classes.update_one({"id": c["id"]}, {"$set": {"reminded": True}})
+        course = await db.courses.find_one({"id": c["course_id"]}, {"_id": 0, "title": 1}) or {"title": ""}
+        ids = [e["user_id"] for e in await db.enrollments.find({"course_id": c["course_id"]}, {"user_id": 1}).to_list(5000)]
+        hora = start.astimezone(ZoneInfo("America/Santiago")).strftime("%H:%M")
+        platform = "Microsoft Teams" if c["platform"] == "teams" else "Google Meet"
+        async for u in db.users.find({"id": {"$in": ids}, "active": True}, {"_id": 0}):
+            try:
+                await send_email(to=u["email"], subject=f"Recordatorio: {c['title']} comienza a las {hora}",
+                                 html=class_reminder_html(u["nombre"], c["title"], course["title"], hora, platform))
+            except Exception as ex:
+                logger.error(f"Reminder email failed for {u['email']}: {ex}")
+            await asyncio.sleep(0.6)
+
+
+@api.post("/cron/class-reminders")
+async def cron_class_reminders(request: Request, bg: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], os.environ["WEBHOOK_CRON_SECRET"]):
+        raise HTTPException(401, "Unauthorized")
+    run_id = request.headers.get("X-Webhook-Id")
+    if not run_id:
+        try:
+            run_id = (await request.json()).get("run_id")
+        except Exception:
+            raise HTTPException(400, "Invalid body")
+    if run_id:
+        if await db.cron_runs.find_one({"run_id": run_id}):
+            return {"ok": True, "duplicate": True}
+        await db.cron_runs.insert_one({"run_id": run_id, "at": now_iso()})
+    bg.add_task(send_class_reminders)
+    return {"ok": True}
 
 
 # ---------------- Settings & diplomas ----------------

@@ -16,6 +16,7 @@ import Analytics from "@/pages/Analytics";
 import LiveClasses from "@/pages/LiveClasses";
 import Settings from "@/pages/Settings";
 import Diplomas from "@/pages/Diplomas";
+import MyProgress from "@/pages/MyProgress";
 import DiplomaView from "@/pages/DiplomaView";
 import VerifyDiploma from "@/pages/VerifyDiploma";
 
@@ -46,6 +47,7 @@ function App() {
           <Route path="/analitica" element={<Protected staff><Analytics /></Protected>} />
           <Route path="/clases" element={<Protected><LiveClasses /></Protected>} />
           <Route path="/configuracion" element={<Protected admin><Settings /></Protected>} />
+          <Route path="/mi-avance" element={<Protected><MyProgress /></Protected>} />
           <Route path="/diplomas" element={<Protected><Diplomas /></Protected>} />
           <Route path="/diploma/:code" element={<Protected><DiplomaView /></Protected>} />
           <Route path="*" element={<Navigate to="/" replace />} />

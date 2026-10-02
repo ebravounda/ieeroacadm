@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, GraduationCap } from "lucide-react";
+import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, GraduationCap } from "lucide-react";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 const NAV = [
   { to: "/", label: "Inicio", icon: LayoutDashboard, roles: ["admin", "docente", "estudiante"] },
+  { to: "/mi-avance", label: "Mi avance", icon: ListChecks, roles: ["estudiante"] },
   { to: "/estudiantes", label: "Estudiantes", icon: Users, roles: ["admin", "docente"] },
   { to: "/cursos", label: "Cursos y módulos", icon: BookOpen, roles: ["admin", "docente"] },
   { to: "/evaluaciones", label: "Evaluaciones e IA", icon: ClipboardCheck, roles: ["admin", "docente"] },
@@ -64,7 +65,7 @@ export default function AppLayout({ children }) {
       <div className="flex-1 min-w-0">
         <header className="lg:hidden sticky top-0 z-20 backdrop-blur-md bg-white/80 border-b px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setOpen(true)} data-testid="mobile-menu-button"><Menu /></Button>
-          <span className="font-heading font-bold">Campus OTEC</span>
+          <span className="font-heading font-bold">IberoAcademy</span>
         </header>
         <main className="p-5 sm:p-8 lg:p-10 max-w-7xl fade-up">{children}</main>
       </div>

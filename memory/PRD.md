@@ -37,6 +37,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 
 - Inline Office viewer (PPT/DOC/XLS) via 2h signed public URL + view.officeapps.live.com.
 - Email to student when teacher grades a development exam (nota 1–7, logro, comentario).
+- "Mi avance" student page (/mi-avance): per course module states, pending tasks, next step link (GET /api/my/progress).
+- Live class email reminders: platform cron every 15 min (.emergent/crons.yml → POST /api/cron/class-reminders, WEBHOOK_CRON_SECRET), sends once per class 0–40 min before start.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
