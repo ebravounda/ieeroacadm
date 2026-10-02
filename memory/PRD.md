@@ -55,6 +55,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Public landing at / (logged-out): hero slider (admin-managed slides, 3 default images in public/landing), benefits/CV section, courses grid (published + show_on_landing; price, summary, image, modality), FAQ, enrollment dialog.
 - Flow.cl payments (backend/shop.py): credentials stored in db.settings id=payments via admin "Sitio web" page (secret masked); checkout → Flow payment/create → redirect; confirm webhook + return URL call getStatus; status 2 → enroll + email. Admin "Pagos": list/filter, send payment link email, copy link, refresh, mark paid manually. Free courses enroll instantly.
 - Flow NOT verified with real keys (customer hasn't provided sandbox keys yet).
+- 2026-10-02: Landing "Alianzas estratégicas" section (#alianzas, after courses): 5 partner logos (AWS, Tramilex, GoRoky, Openfactura, Inmo Tramilex) in frontend/public/partners/*.png + country chips (Chile, España, México, Honduras, Perú).
+- 2026-10-02: Customer asked about self-hosting on aaPanel + Cloudflare. Self-host caveats: EMERGENT_LLM_KEY, EMERGENT_EMAIL_KEY, object storage (INTEGRATION_PROXY_URL) and .emergent/crons.yml do not work outside Emergent → would need own OpenAI/Resend/storage keys + system cron (POST /api/cron/* with Bearer WEBHOOK_CRON_SECRET).
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

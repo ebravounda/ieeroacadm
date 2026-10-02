@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Clock, Laptop, QrCode, Video, Briefcase, TrendingUp, CalendarCheck, ArrowRight, Menu, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Laptop, QrCode, Video, Briefcase, TrendingUp, CalendarCheck, ArrowRight, Menu, X, MapPin, Handshake } from "lucide-react";
 import { api, errMsg } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -140,6 +140,37 @@ function Courses({ courses, onEnroll }) {
   );
 }
 
+const PARTNERS = [["aws", "Amazon Web Services"], ["tramilex", "Tramilex"], ["goroky", "GoRoky"], ["openfactura", "Openfactura"], ["inmo-tramilex", "Inmo Tramilex"]];
+const COUNTRIES = ["Chile", "España", "México", "Honduras", "Perú"];
+
+function Partners() {
+  return (
+    <section id="alianzas" className="bg-slate-50 border-y py-24" data-testid="landing-partners">
+      <div className="max-w-7xl mx-auto px-5">
+        <div className="grid lg:grid-cols-[1fr_1.4fr] gap-10 items-end mb-12">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-teal-600 flex items-center gap-2"><Handshake size={14} /> Alianzas estratégicas</p>
+            <h2 className="text-3xl sm:text-4xl font-extrabold mt-2 text-slate-900">Respaldados por grandes empresas</h2>
+          </div>
+          <div>
+            <p className="text-slate-600">Contamos con alianzas estratégicas con grandes empresas en Chile, España, México, Honduras y Perú, que fortalecen nuestra formación y conectan a nuestros estudiantes con el mundo laboral.</p>
+            <div className="flex flex-wrap gap-2 mt-4" data-testid="landing-partner-countries">
+              {COUNTRIES.map((c) => <span key={c} className="inline-flex items-center gap-1 text-xs font-semibold text-teal-900 bg-white border rounded-full px-3 py-1.5"><MapPin size={12} className="text-teal-600" />{c}</span>)}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6">
+          {PARTNERS.map(([k, n]) => (
+            <div key={k} className="group bg-white rounded-2xl border h-32 sm:h-36 p-5 sm:p-6 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1 transition-[transform,box-shadow] duration-300" data-testid={`landing-partner-${k}`}>
+              <img src={`/partners/${k}.png`} alt={n} loading="lazy" className="max-h-full max-w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Benefits() {
   return (
     <section id="beneficios" className="bg-teal-900 text-white py-24">
@@ -174,6 +205,7 @@ export default function Landing() {
         ))}
       </section>
       <Courses courses={data.courses} onEnroll={setSelected} />
+      <Partners />
       <Benefits />
       <section id="preguntas" className="max-w-3xl mx-auto px-5 py-24">
         <h2 className="text-3xl font-extrabold mb-8 text-slate-900">Preguntas frecuentes</h2>
