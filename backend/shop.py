@@ -135,6 +135,7 @@ class CheckoutIn(BaseModel):
     nombre: str = Field(min_length=1)
     apellidos: str = Field(min_length=1)
     rut: str = ""
+    accept_terms: bool = False
 
 
 @router.post("/public/checkout")
@@ -142,10 +143,13 @@ async def checkout(body: CheckoutIn, request: Request):
     course = await db.courses.find_one({"id": body.course_id, "published": True, "show_on_landing": True}, {"_id": 0})
     if not course:
         raise HTTPException(404, "Curso no disponible")
+    if not body.accept_terms:
+        raise HTTPException(400, "Debes aceptar los Términos y Condiciones y la Política de Privacidad")
     user = await db.users.find_one({"email": body.email.lower()}, {"_id": 0}) or \
         await create_user(body.email, body.nombre, body.apellidos, body.rut, "estudiante", "landing")
     if await db.enrollments.find_one({"user_id": user["id"], "course_id": course["id"]}):
         raise HTTPException(400, "Ya estás inscrito en este curso. Ingresa a la plataforma con tu correo.")
+    await db.users.update_one({"id": user["id"]}, {"$set": {"terms_accepted_at": now_iso()}})
     base = app_base(request)
     if not course.get("price"):
         pay = await new_payment(user, course)

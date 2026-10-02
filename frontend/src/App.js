@@ -22,6 +22,7 @@ import Landing from "@/pages/Landing";
 import PaymentResult from "@/pages/PaymentResult";
 import Payments from "@/pages/Payments";
 import WebsiteAdmin from "@/pages/WebsiteAdmin";
+import Legal from "@/pages/Legal";
 
 function Home() {
   const { user } = useAuth();
@@ -50,6 +51,8 @@ function App() {
           <Route path="/verificar-asistencia/:code" element={<VerifyAttendance />} />
           <Route path="/certificado-asistencia/:code" element={<Protected><AttendanceCertificate /></Protected>} />
           <Route path="/" element={<Home />} />
+          <Route path="/terminos" element={<Legal doc="terminos" />} />
+          <Route path="/privacidad" element={<Legal doc="privacidad" />} />
           <Route path="/pago/resultado" element={<PaymentResult />} />
           <Route path="/pagos" element={<Protected staff><Payments /></Protected>} />
           <Route path="/sitio-web" element={<Protected admin><WebsiteAdmin /></Protected>} />

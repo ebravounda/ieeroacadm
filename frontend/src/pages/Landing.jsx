@@ -83,7 +83,7 @@ function Hero({ slides }) {
 }
 
 function EnrollDialog({ course, onClose }) {
-  const [f, setF] = useState({ nombre: "", apellidos: "", rut: "", email: "" });
+  const [f, setF] = useState({ nombre: "", apellidos: "", rut: "", email: "", accept_terms: false });
   const [busy, setBusy] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
@@ -105,7 +105,11 @@ function EnrollDialog({ course, onClose }) {
           <div><Label>RUT</Label><Input value={f.rut} onChange={set("rut")} data-testid="enroll-rut" /></div>
           <div><Label>Correo</Label><Input type="email" required value={f.email} onChange={set("email")} data-testid="enroll-email" /></div>
           <div className="col-span-2 flex items-center justify-between bg-slate-50 rounded-lg p-3 mt-1"><span className="text-sm text-slate-600">Total a pagar</span><b className="text-xl" data-testid="enroll-total">{clp(course?.price)}</b></div>
-          <Button type="submit" disabled={busy} className="col-span-2 h-11" data-testid="enroll-submit">{busy ? "Procesando…" : course?.price ? "Ir a pagar con Flow" : "Confirmar inscripción"}</Button>
+          <label className="col-span-2 flex items-start gap-2 text-sm text-slate-600 cursor-pointer">
+            <input type="checkbox" required checked={f.accept_terms} onChange={(e) => setF({ ...f, accept_terms: e.target.checked })} className="mt-0.5 h-4 w-4 accent-[#11305C]" data-testid="enroll-accept-terms" />
+            <span>Acepto los <a href="/terminos" target="_blank" rel="noreferrer" className="text-teal-600 underline">Términos y Condiciones</a> y la <a href="/privacidad" target="_blank" rel="noreferrer" className="text-teal-600 underline">Política de Privacidad</a>.</span>
+          </label>
+          <Button type="submit" disabled={busy || !f.accept_terms} className="col-span-2 h-11" data-testid="enroll-submit">{busy ? "Procesando…" : course?.price ? "Ir a pagar con Flow" : "Confirmar inscripción"}</Button>
           <p className="col-span-2 text-xs text-slate-500 text-center">Pago seguro con Flow: tarjetas de crédito, débito y transferencias.</p>
         </form>
       </DialogContent>
@@ -216,8 +220,12 @@ export default function Landing() {
       <footer className="bg-[#061A38] text-slate-400 py-12">
         <div className="max-w-7xl mx-auto px-5 flex flex-col sm:flex-row gap-6 justify-between items-start sm:items-center">
           <div className="bg-white rounded-xl p-2"><img src="/logo.png" alt="IberoAcademy" className="h-12" /></div>
-          <p className="text-sm">© {new Date().getFullYear()} IberoAcademy · iberoacademy.cl</p>
-          <Link to="/login" className="text-sm text-teal-300 hover:underline">Acceso alumnos y docentes</Link>
+          <div className="text-sm"><p>© {new Date().getFullYear()} IBERO ACADEMY SpA · RUT 78.486.869-9</p><p className="text-xs mt-1">Providencia, Región Metropolitana, Chile</p></div>
+          <nav className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-sm">
+            <Link to="/terminos" className="hover:text-white" data-testid="footer-terms-link">Términos y Condiciones</Link>
+            <Link to="/privacidad" className="hover:text-white" data-testid="footer-privacy-link">Política de Privacidad</Link>
+            <Link to="/login" className="text-teal-300 hover:underline">Acceso alumnos y docentes</Link>
+          </nav>
         </div>
       </footer>
       <EnrollDialog course={selected} onClose={() => setSelected(null)} />
