@@ -3,7 +3,6 @@
 Covers issue_diploma on final-exam pass, admin approve/reject, PDF generation (pymupdf),
 QR + approval code, public verify, settings/certificate-preview with custom template.
 """
-import io
 import os
 import re
 import time

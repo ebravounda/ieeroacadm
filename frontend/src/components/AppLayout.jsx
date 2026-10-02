@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, GraduationCap } from "lucide-react";
+import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu } from "lucide-react";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -46,8 +46,8 @@ export default function AppLayout({ children }) {
   return (
     <div className="min-h-screen flex">
       <aside className={`fixed lg:sticky top-0 z-40 h-screen w-64 shrink-0 bg-[#0F172A] text-slate-300 flex flex-col transition-transform duration-200 ${open ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`} data-testid="sidebar">
-        <div className="px-6 py-6 flex items-center gap-3 border-b border-slate-800">
-          <div className="h-9 w-9 rounded-lg bg-teal-600 grid place-items-center text-white"><GraduationCap size={20} /></div>
+        <div className="px-5 py-5 flex items-center gap-3 border-b border-slate-800">
+          <div className="h-12 w-12 rounded-lg bg-white grid place-items-center p-1 shrink-0"><img src="/logo.png" alt="IberoAcademy" className="max-h-full max-w-full object-contain" data-testid="sidebar-logo" /></div>
           <div>
             <p className="font-heading font-bold text-white leading-tight">IberoAcademy</p>
             <p className="text-[11px] uppercase tracking-wider text-slate-500">{isStaff(user) ? "Gestión" : "Aula virtual"}</p>
@@ -75,6 +75,7 @@ export default function AppLayout({ children }) {
       <div className="flex-1 min-w-0">
         <header className="lg:hidden sticky top-0 z-20 backdrop-blur-md bg-white/80 border-b px-4 py-3 flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => setOpen(true)} data-testid="mobile-menu-button"><Menu /></Button>
+          <img src="/logo.png" alt="IberoAcademy" className="h-8 w-auto" />
           <span className="font-heading font-bold">IberoAcademy</span>
         </header>
         <main className="p-5 sm:p-8 lg:p-10 max-w-7xl fade-up">{children}</main>

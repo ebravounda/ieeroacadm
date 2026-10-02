@@ -29,6 +29,14 @@ EMAIL_BASE_URL = "https://integrations.emergentagent.com"
 EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
 LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+PUBLIC_BASE = ""
+
+
+def _brand() -> str:
+    if PUBLIC_BASE.startswith("https://"):
+        return (f'<img src="{escape(PUBLIC_BASE)}/logo.png" alt="{escape(EMAIL_FROM_NAME)}" width="140" '
+                'style="display:block;margin:0 0 16px;border:0">')
+    return f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
 
 
 def now():
@@ -185,7 +193,7 @@ async def send_email(*, to: str, subject: str, html: str):
 def otp_email_html(name: str, code: str) -> str:
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p>Hola {escape(name)}, este es tu código para ingresar a la plataforma:</p>'
         f'<p style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#0d9488">{escape(code)}</p>'
         '<p>El código vence en 10 minutos. Si no solicitaste este ingreso, ignora este mensaje.</p>'
@@ -197,7 +205,7 @@ def otp_email_html(name: str, code: str) -> str:
 def class_reminder_html(name, title, course, hora, platform) -> str:
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p>Hola {escape(name)}, te recordamos que tu clase en vivo está por comenzar.</p>'
         f'<p style="font-size:20px;font-weight:bold;margin:8px 0">{escape(title)}</p>'
         f'<p>Curso: {escape(course)}<br>Hora de inicio: <b>{escape(hora)} (hora de Chile)</b><br>Plataforma: {escape(platform)}</p>'
@@ -210,7 +218,7 @@ def class_reminder_html(name, title, course, hora, platform) -> str:
 def inactivity_email_html(name, days, course, progress, next_step) -> str:
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p>Hola {escape(name)}, hace {days} días que no ingresas a la plataforma. ¡Tu curso te espera!</p>'
         f'<p style="font-size:18px;font-weight:bold;margin:8px 0">{escape(course)}</p>'
         f'<p>Llevas un <b>{progress}%</b> de avance.</p>'
@@ -225,7 +233,7 @@ def cert_request_email_html(admin_name, student, course, nota) -> str:
     nota_txt = f" con nota final <b>{nota:.1f}</b>".replace(".", ",") if nota else ""
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p>Hola {escape(admin_name)}, hay una nueva <b>solicitud de aprobación de certificado</b>.</p>'
         f'<p style="font-size:16px"><b>{escape(student)}</b> finalizó el curso <b>{escape(course)}</b>{nota_txt}.</p>'
         '<p>Ingresa a la plataforma, sección <b>Diplomas</b>, para revisar y aprobar la emisión del certificado.</p>'
@@ -238,7 +246,7 @@ def cert_approved_email_html(name, course, nota, code, verify_url, phrase) -> st
     nota_txt = f"<p>Tu nota final: <b>{nota:.1f}</b></p>".replace(".", ",", 1) if nota else ""
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p style="font-size:22px;font-weight:bold;color:#0d9488;margin:8px 0">¡Felicidades, {escape(name)}!</p>'
         f'<p>Has completado tu curso <b>{escape(course)}</b> exitosamente. Tu certificado fue aprobado y ya está disponible.</p>'
         f'{nota_txt}'
@@ -276,7 +284,7 @@ def weekly_report_html(reports, date) -> str:
     body = "".join(parts) or "<p>No hay cursos registrados.</p>"
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 4px">{escape(EMAIL_FROM_NAME)} · Reporte semanal OTEC</h2>'
+        f'{_brand()}<h2 style="margin:0 0 4px">Reporte semanal OTEC</h2>'
         f'<p style="margin:0;color:#475569">Corte al {escape(date)}. Notas en escala 1,0 – 7,0. Permanencia medida dentro de cada curso.</p>'
         f'{body}'
         '<p style="margin-top:24px;font-size:13px">Para descargar el detalle completo en CSV, ingresa a Cursos y módulos → curso → pestaña “Reporte OTEC”.</p>'
@@ -291,7 +299,7 @@ def grade_email_html(name, course, exam, nota, score, passed, feedback) -> str:
     fb = f'<p><b>Comentario del docente:</b> {escape(feedback)}</p>' if feedback else ""
     return (
         '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
-        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'{_brand()}'
         f'<p>Hola {escape(name)}, tu docente calificó tu {escape(exam)} del curso <b>{escape(course)}</b>.</p>'
         f'<p style="font-size:36px;font-weight:bold;color:{color};margin:8px 0">Nota {nota_txt}</p>'
         f'<p>Logro: {score}% · {"Aprobado" if passed else "No aprobado"}</p>'

@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Award, Check, X, Hourglass } from "lucide-react";
+import { Award, Check, X, Hourglass, CheckCheck } from "lucide-react";
 import { api, errMsg, fmtDay, fmtNota } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, Empty } from "@/components/Common";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const STATUS = {
@@ -31,7 +32,7 @@ function Card({ d }) {
   );
 }
 
-function PendingRow({ d, canApprove, onDone }) {
+function PendingRow({ d, canApprove, onDone, checked, onCheck }) {
   const [busy, setBusy] = useState(false);
   const approve = async () => {
     setBusy(true);
@@ -45,6 +46,7 @@ function PendingRow({ d, canApprove, onDone }) {
   };
   return (
     <div className="p-4 flex flex-wrap items-center gap-4" data-testid={`certificate-request-${d.id}`}>
+      {canApprove && <Checkbox checked={checked} onCheckedChange={onCheck} data-testid={`certificate-select-${d.id}`} />}
       <Hourglass size={18} className="text-amber-600" />
       <div className="flex-1 min-w-[200px]">
         <p className="font-medium">{d.student_name} {d.rut && <span className="text-xs text-slate-500">· {d.rut}</span>}</p>
@@ -61,7 +63,35 @@ function PendingRow({ d, canApprove, onDone }) {
   );
 }
 
+function BulkBar({ pending, selected, setSelected, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const all = pending.length > 0 && selected.length === pending.length;
+  const run = async () => {
+    if (!window.confirm(`¿Aprobar y emitir ${selected.length} certificado(s)? Cada alumno recibirá su correo.`)) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post("/diplomas/approve-bulk", { ids: selected });
+      toast.success(`${data.approved} certificado(s) emitidos y enviados`);
+      if (data.errors.length) toast.error(`No se pudieron emitir: ${data.errors.join(", ")}`);
+      setSelected([]);
+      onDone();
+    } catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-3 bg-slate-50 rounded-t-xl border border-b-0" data-testid="certificate-bulk-bar">
+      <label className="flex items-center gap-2 text-sm cursor-pointer">
+        <Checkbox checked={all} onCheckedChange={(v) => setSelected(v ? pending.map((d) => d.id) : [])} data-testid="certificate-select-all" /> Seleccionar todas
+      </label>
+      <span className="text-sm text-slate-500" data-testid="certificate-selected-count">{selected.length} seleccionada(s)</span>
+      <Button size="sm" className="ml-auto" disabled={!selected.length || busy} onClick={run} data-testid="certificate-approve-selected">
+        <CheckCheck size={14} className="mr-1" /> {busy ? "Emitiendo…" : `Aprobar seleccionados (${selected.length})`}
+      </Button>
+    </div>
+  );
+}
+
 function StaffView({ rows, canApprove, reload }) {
+  const [selected, setSelected] = useState([]);
   const pending = rows.filter((d) => statusOf(d) !== "aprobado");
   const issued = rows.filter((d) => statusOf(d) === "aprobado");
   return (
@@ -72,7 +102,13 @@ function StaffView({ rows, canApprove, reload }) {
       </TabsList>
       <TabsContent value="pending">
         {pending.length === 0 ? <Empty text="No hay solicitudes de certificado pendientes." testId="certificate-requests-empty" />
-          : <div className="bg-white border rounded-xl divide-y">{pending.map((d) => <PendingRow key={d.id} d={d} canApprove={canApprove} onDone={reload} />)}</div>}
+          : <>
+            {canApprove && <BulkBar pending={pending} selected={selected.filter((id) => pending.some((d) => d.id === id))} setSelected={setSelected} onDone={reload} />}
+            <div className={`bg-white border divide-y ${canApprove ? "rounded-b-xl" : "rounded-xl"}`}>{pending.map((d) => (
+              <PendingRow key={d.id} d={d} canApprove={canApprove} onDone={reload} checked={selected.includes(d.id)}
+                onCheck={(v) => setSelected(v ? [...selected, d.id] : selected.filter((x) => x !== d.id))} />
+            ))}</div>
+          </>}
       </TabsContent>
       <TabsContent value="issued">
         {issued.length === 0 ? <Empty text="Aún no hay certificados emitidos." testId="diplomas-empty" />

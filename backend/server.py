@@ -13,6 +13,7 @@ from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response, Reques
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field
 
+import core
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
                   get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token,
@@ -353,6 +354,12 @@ async def register(body: RegisterIn):
     return {"ok": True}
 
 
+async def remember_public_base(base):
+    if base.startswith("https://") and core.PUBLIC_BASE != base:
+        core.PUBLIC_BASE = base
+        await db.app_meta.update_one({"id": "public"}, {"$set": {"base": base}}, upsert=True)
+
+
 @api.post("/auth/verify-code")
 async def verify_code(body: VerifyIn, request: Request, response: Response):
     email = body.email.lower()
@@ -376,6 +383,7 @@ async def verify_code(body: VerifyIn, request: Request, response: Response):
                                      "ip": request.client.host if request.client else ""})
     token = create_token(user["id"])
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
+    await remember_public_base(app_base(request))
     return {"token": token, "user": public_user(user)}
 
 
@@ -1294,6 +1302,35 @@ MOTIVATION = [
 ]
 
 
+async def approve_one(d, base, admin_id, bg):
+    d["approved_at"] = now_iso()
+    s = await get_settings()
+    pdf = await build_certificate_pdf(d, s, f"{base}/verificar/{d['code']}")
+    res = await asyncio.to_thread(put_object, f"{APP_NAME}/certificados/{d['code']}.pdf", pdf, "application/pdf")
+    upd = {"status": "aprobado", "approved_at": d["approved_at"], "approved_by": admin_id,
+           "pdf_path": res["path"], "verify_url": f"{base}/verificar/{d['code']}", "reject_reason": ""}
+    await db.diplomas.update_one({"id": d["id"]}, {"$set": upd})
+    bg.add_task(notify_student_certificate, {**d, **upd})
+    return {**d, **upd}
+
+
+class BulkApproveIn(BaseModel):
+    ids: List[str] = Field(min_length=1, max_length=200)
+
+
+@api.post("/diplomas/approve-bulk")
+async def approve_bulk(body: BulkApproveIn, request: Request, bg: BackgroundTasks, admin=Depends(admin_only)):
+    base, approved, errors = app_base(request), 0, []
+    for d in await db.diplomas.find({"id": {"$in": body.ids}, "status": {"$ne": "aprobado"}}, {"_id": 0}).to_list(200):
+        try:
+            await approve_one(d, base, admin["id"], bg)
+            approved += 1
+        except Exception as ex:
+            logger.error(f"Bulk approve failed for {d['id']}: {ex}")
+            errors.append(d["student_name"])
+    return {"approved": approved, "errors": errors}
+
+
 @api.post("/diplomas/{diploma_id}/approve")
 async def approve_diploma(diploma_id: str, request: Request, bg: BackgroundTasks, admin=Depends(admin_only)):
     d = await db.diplomas.find_one({"id": diploma_id}, {"_id": 0})
@@ -1301,20 +1338,11 @@ async def approve_diploma(diploma_id: str, request: Request, bg: BackgroundTasks
         raise HTTPException(404, "Certificado no encontrado")
     if d.get("status") == "aprobado":
         raise HTTPException(400, "Este certificado ya fue aprobado")
-    base = app_base(request)
-    d["approved_at"] = now_iso()
-    s = await get_settings()
     try:
-        pdf = await build_certificate_pdf(d, s, f"{base}/verificar/{d['code']}")
+        return await approve_one(d, app_base(request), admin["id"], bg)
     except Exception as ex:
         logger.error(f"Certificate render failed: {ex}")
         raise HTTPException(500, "No se pudo generar el PDF. Revisa la plantilla en Configuración.")
-    res = await asyncio.to_thread(put_object, f"{APP_NAME}/certificados/{d['code']}.pdf", pdf, "application/pdf")
-    upd = {"status": "aprobado", "approved_at": d["approved_at"], "approved_by": admin["id"],
-           "pdf_path": res["path"], "verify_url": f"{base}/verificar/{d['code']}", "reject_reason": ""}
-    await db.diplomas.update_one({"id": diploma_id}, {"$set": upd})
-    bg.add_task(notify_student_certificate, {**d, **upd})
-    return {**d, **upd}
 
 
 async def notify_student_certificate(d):
@@ -1486,6 +1514,9 @@ async def startup():
         await asyncio.to_thread(init_storage)
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
+    meta = await db.app_meta.find_one({"id": "public"})
+    if meta:
+        core.PUBLIC_BASE = meta["base"]
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     if not await db.users.find_one({"email": admin_email}):
         await db.users.insert_one({"id": new_id(), "email": admin_email, "nombre": "Administrador", "apellidos": "OTEC",

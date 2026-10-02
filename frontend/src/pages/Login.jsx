@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import { toast } from "sonner";
-import { GraduationCap, Mail, ArrowLeft } from "lucide-react";
+import { Mail, ArrowLeft } from "lucide-react";
 import { api, errMsg } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -111,9 +111,8 @@ export default function Login() {
       </div>
       <div className="flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm fade-up">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="h-10 w-10 rounded-lg bg-teal-600 grid place-items-center text-white"><GraduationCap size={22} /></div>
-            <span className="font-heading text-xl font-bold">IberoAcademy</span>
+          <div className="mb-10">
+            <img src="/logo.png" alt="IberoAcademy" className="h-24 w-auto" data-testid="login-logo" />
           </div>
           <h2 className="text-2xl font-bold mb-1">Bienvenido</h2>
           <p className="text-slate-500 text-sm mb-6">Accede sin contraseña con un código enviado a tu correo.</p>
