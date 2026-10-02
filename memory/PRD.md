@@ -41,6 +41,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Live class email reminders: platform cron every 15 min (.emergent/crons.yml → POST /api/cron/class-reminders, WEBHOOK_CRON_SECRET), sends once per class 0–40 min before start.
 - Live class attendance list per class (enrolled students Presente/Ausente, RUT, hora ingreso) + CSV export (GET /api/live-classes/{id}/attendance).
 - Inactivity alerts: daily cron 10:00 America/Santiago → POST /api/cron/inactivity-alerts; emails students with unfinished courses and no activity in 7 days (max 1 alert / 7 days, includes next step).
+- OTEC/SENCE course report tab in CourseEditor (GET /api/courses/{id}/report) + CSV export.
+- Attendance certificates per finished live class (POST /api/live-classes/{id}/certificate, /certificado-asistencia/:code, public /verificar-asistencia/:code with QR).
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
