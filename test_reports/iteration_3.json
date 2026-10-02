@@ -1,0 +1,25 @@
+{
+  "summary": "Iteration 3 (IberoAcademy): tested the two new features — inline Office viewer for .pptx/.docx/.xlsx materials and grade-notification email after staff grades an open-question submission. Backend: 8/8 new pytest tests pass (test_iteration3.py). Covered: GET /api/files/{id}/viewer-url returns {url: https://<host>/api/public/files/<token>/file.<ext>} with proper scheme/path; requires access-token auth (401 without); 404 for non-Office files (pdf); invalid file token -> 403; file token cannot be used as access bearer (401 on /auth/me); access token presented in public-file path -> 403 (type check works both ways). Public /api/public/files/<token>/file.pptx returns raw bytes with no auth. Grade endpoint still returns graded submission (status=calificada, nota, score, passed) for an en_revision open-question submission and triggers background notify_grade without producing 'Grade email failed' in /var/log/supervisor/backend.err.log. Frontend: navigated as admin to /modulo/<id> with a .pptx material; iframe[data-testid='material-office-viewer-<id>'] renders with src = https://view.officeapps.live.com/op/embed.aspx?src=<url-encoded public URL>. Download link also present. (Office rendering shows 'can't open' because the uploaded test bytes are a fake pptx — expected; src and routing are correct.) PDF/image inline preview and download link still work (regression preserved).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/iteration3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "notify_grade swallows exceptions by logging; a bad email (e.g., invalid HTML passing _assert_safe_email) would silently fail — consider also exposing a send-status flag on the submission for admins.",
+    "file_viewer_url uses x-forwarded-host/host header without validation; if a request is proxied with a spoofed Host header, the generated URL would point there. Low risk because the token still gates access, but consider pinning to a configured public BASE_URL env var.",
+    "create_file_token uses the same JWT_SECRET and HS256 as access tokens, distinguished only by 'type' claim. OK and correctly enforced in both directions, but a dedicated secret or asymmetric key for file tokens would reduce blast radius if the file token leaks are longer-lived in practice.",
+    "OFFICE_EXT literal lives in server.py while frontend has OFFICE_RE in Materials.jsx — kept in sync manually; consider deriving a single list on the backend and exposing /api/config to the frontend.",
+    "GET /api/public/files/{token}/{name} ignores the {name} segment entirely; a mismatched extension in the URL would still succeed. Minor cosmetic — Office viewer uses the ext for mime hinting, so keep as-is but worth a comment."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration3.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% of smoke-tested flows"},
+  "test_credentials": "Admin: delivered+admin@resend.dev (id test-admin-1). JWT minted using JWT_SECRET from backend/.env, stored to localStorage key 'otec_token' for UI auth.",
+  "seed_data_creation": "test_iteration3.py creates: TEST_i3_slides.pptx, TEST_i3.pdf (via /api/files); TEST_i3_open course + module with open-question; one TEST_i3stu* student. UI smoke test additionally created TEST_i3ui_course + TEST_i3ui_m1 module with TEST_i3ui.pptx material (file_id=08c837fe-53fc-4916-991d-e8a25789b1f3, course=5e7b86f4-846c-4f36-abfd-66839929c74c, module=41ae4b1b-da98-4fe1-be22-4c3684782da6). All TEST_* prefixed for easy cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Three pytest files now: backend/tests/backend_test.py (iter 1), test_iteration2.py (iter 2), test_iteration3.py (iter 3). Iteration 3 focuses on Office viewer + grade email. Run: pytest backend/tests/test_iteration3.py -v. Frontend Office viewer route is /modulo/:id (not /cursos/:id/modulos/:id as doc suggested). To check email delivery end-to-end you'd need access to Resend dashboard; here we only validate backend doesn't error and background task fires.",
+  "rca of the issue": "N/A — no bugs found. Office viewer renders a Microsoft error for fake pptx bytes, which is expected and does not indicate an app bug (iframe src and routing are correct)."
+}

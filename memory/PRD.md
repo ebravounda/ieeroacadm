@@ -35,7 +35,9 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Live classes (Teams/Meet link, live status, attendance on join).
 - Claude AI-usage % per submission + behavior signals (tab switches, paste, time).
 
+- Inline Office viewer (PPT/DOC/XLS) via 2h signed public URL + view.officeapps.live.com.
+- Email to student when teacher grades a development exam (nota 1–7, logro, comentario).
+
 ## Backlog
-- P1: Office viewer for PPT inline preview; email notification when teacher grades.
 - P1: Per-teacher course ownership restrictions.
 - P2: Attendance reports per live class export; certificate PDF generation server-side.
