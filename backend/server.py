@@ -796,6 +796,8 @@ async def list_live(user=Depends(get_current_user)):
         r["status"] = class_status(r)
         r["course_title"] = titles.get(r["course_id"], "")
         r["attendees"] = await db.live_attendance.count_documents({"class_id": r["id"]})
+        if user["role"] not in STAFF:
+            r["attended"] = bool(await db.live_attendance.find_one({"class_id": r["id"], "user_id": user["id"]}))
         if user["role"] not in STAFF and r["status"] != "en_vivo":
             r.pop("url")
     return rows
@@ -1045,6 +1047,90 @@ async def cron_inactivity_alerts(request: Request, bg: BackgroundTasks):
         return {"ok": True, "duplicate": True}
     bg.add_task(send_inactivity_alerts)
     return {"ok": True}
+
+
+# ---------------- Attendance certificates ----------------
+@api.post("/live-classes/{class_id}/certificate")
+async def attendance_certificate(class_id: str, user=Depends(get_current_user)):
+    c = await db.live_classes.find_one({"id": class_id}, {"_id": 0})
+    rec = await db.live_attendance.find_one({"class_id": class_id, "user_id": user["id"]}, {"_id": 0})
+    if not c or not rec:
+        raise HTTPException(404, "No registras asistencia a esta clase")
+    if class_status(c) != "finalizada":
+        raise HTTPException(400, "El certificado estará disponible cuando la clase finalice")
+    code = rec.get("cert_code")
+    if not code:
+        code = "A" + secrets.token_hex(5).upper()
+        await db.live_attendance.update_one({"class_id": class_id, "user_id": user["id"]},
+                                            {"$set": {"cert_code": code, "cert_issued_at": now_iso()}})
+    return {"code": code}
+
+
+async def attendance_cert_data(code):
+    rec = await db.live_attendance.find_one({"cert_code": code.upper()}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Certificado no encontrado")
+    c = await db.live_classes.find_one({"id": rec["class_id"]}, {"_id": 0}) or {}
+    u = await db.users.find_one({"id": rec["user_id"]}, {"_id": 0}) or {}
+    course = await db.courses.find_one({"id": c.get("course_id")}, {"_id": 0, "title": 1}) or {}
+    start, end = datetime.fromisoformat(c["start_at"]), datetime.fromisoformat(c["end_at"])
+    return {"code": rec["cert_code"], "user_id": rec["user_id"],
+            "student_name": f"{u.get('nombre', '')} {u.get('apellidos', '')}", "rut": u.get("rut", ""),
+            "class_title": c.get("title"), "course_title": course.get("title", ""),
+            "platform": "Microsoft Teams" if c.get("platform") == "teams" else "Google Meet",
+            "start_at": c["start_at"], "end_at": c["end_at"], "joined_at": rec["joined_at"],
+            "duration_min": round((end - start).total_seconds() / 60), "issued_at": rec.get("cert_issued_at")}
+
+
+@api.get("/attendance-certificates/{code}")
+async def get_attendance_certificate(code: str, user=Depends(get_current_user)):
+    d = await attendance_cert_data(code)
+    if user["role"] not in STAFF and d["user_id"] != user["id"]:
+        raise HTTPException(403, "Sin permisos")
+    return {**d, "otec_name": (await get_settings()).get("otec_name")}
+
+
+@api.get("/public/verify-attendance/{code}")
+async def verify_attendance(code: str):
+    d = await attendance_cert_data(code)
+    d.pop("user_id")
+    return {**d, "valid": True, "otec_name": (await get_settings()).get("otec_name")}
+
+
+# ---------------- OTEC course report ----------------
+@api.get("/courses/{course_id}/report")
+async def course_report(course_id: str, _=Depends(staff_only)):
+    course = await db.courses.find_one({"id": course_id}, {"_id": 0})
+    if not course:
+        raise HTTPException(404, "Curso no encontrado")
+    modules = await get_modules(course_id)
+    class_ids = [c["id"] for c in await db.live_classes.find({"course_id": course_id}, {"_id": 0, "id": 1}).to_list(1000)]
+    rows = []
+    for e in await db.enrollments.find({"course_id": course_id}, {"_id": 0}).to_list(5000):
+        u = await db.users.find_one({"id": e["user_id"]}, {"_id": 0})
+        if not u:
+            continue
+        sess = await db.sessions.find({"user_id": u["id"]}, {"_id": 0, "duration_sec": 1}).to_list(5000)
+        live = await db.live_attendance.count_documents({"user_id": u["id"], "class_id": {"$in": class_ids}})
+        g = course_grades(e, course, modules)
+        done = len([m for m in modules if m["id"] in e["completed_modules"]])
+        last = await last_activity(u)
+        rows.append({"student_name": f"{u['nombre']} {u['apellidos']}", "nombre": u["nombre"], "apellidos": u["apellidos"],
+                     "rut": u.get("rut", ""), "email": u["email"], "enrolled_at": e["enrolled_at"],
+                     "method": e.get("method", ""), "last_access": last.isoformat() if last else None,
+                     "days_attended": len(sess), "total_minutes": round(sum(x["duration_sec"] for x in sess) / 60),
+                     "live_attended": live, "live_total": len(class_ids),
+                     "live_pct": round(live / len(class_ids) * 100) if class_ids else None,
+                     "modules_done": done, "modules_total": len(modules),
+                     "progress": round(done / len(modules) * 100) if modules else 0,
+                     "modules_avg_nota": g["modules_avg_nota"], "final_nota": g["final_nota"],
+                     "overall_nota": g["overall_nota"],
+                     "status": "Aprobado" if e["final_passed"] else "En curso", "completed_at": e.get("completed_at")})
+    rows.sort(key=lambda r: r["student_name"].lower())
+    return {"course": {"id": course["id"], "title": course["title"], "code": course.get("code", ""),
+                       "hours": course.get("hours", 0)}, "generated_at": now_iso(), "rows": rows,
+            "summary": {"students": len(rows), "approved": sum(r["status"] == "Aprobado" for r in rows),
+                        "live_classes": len(class_ids)}}
 
 
 # ---------------- Settings & diplomas ----------------

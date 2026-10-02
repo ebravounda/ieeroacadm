@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Video, Trash2, ExternalLink, Users, ClipboardList, Download } from "lucide-react";
+import { Plus, Video, Trash2, ExternalLink, Users, ClipboardList, Download, Award } from "lucide-react";
 import { api, errMsg, fmtDate } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, Empty } from "@/components/Common";
@@ -109,6 +110,8 @@ function AttendanceDialog({ classId }) {
 
 function ClassCard({ c, staff, onChange }) {
   const st = STATUS[c.status];
+  const nav = useNavigate();
+  const certificate = () => api.post(`/live-classes/${c.id}/certificate`).then((r) => nav(`/certificado-asistencia/${r.data.code}`)).catch((e) => toast.error(errMsg(e)));
   const join = () => api.post(`/live-classes/${c.id}/join`).then((r) => window.open(r.data.url, "_blank", "noopener")).catch((e) => toast.error(errMsg(e)));
   const del = () => window.confirm("¿Eliminar clase?") && api.delete(`/live-classes/${c.id}`).then(onChange);
   return (
@@ -128,6 +131,9 @@ function ClassCard({ c, staff, onChange }) {
         <Button onClick={join} className={c.status === "en_vivo" ? "bg-rose-600 hover:bg-rose-700" : ""} variant={c.status === "en_vivo" ? "default" : "outline"} data-testid={`live-class-open-${c.id}`}>
           <ExternalLink size={16} className="mr-2" /> Abrir clase
         </Button>
+      )}
+      {!staff && c.attended && c.status === "finalizada" && (
+        <Button variant="outline" onClick={certificate} data-testid={`live-class-certificate-${c.id}`}><Award size={16} className="mr-2" /> Certificado de asistencia</Button>
       )}
       {staff && <AttendanceDialog classId={c.id} />}
       {staff && <Button size="icon" variant="ghost" onClick={del} data-testid={`live-class-delete-${c.id}`}><Trash2 size={16} /></Button>}

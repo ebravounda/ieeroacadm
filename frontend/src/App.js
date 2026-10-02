@@ -17,6 +17,7 @@ import LiveClasses from "@/pages/LiveClasses";
 import Settings from "@/pages/Settings";
 import Diplomas from "@/pages/Diplomas";
 import MyProgress from "@/pages/MyProgress";
+import AttendanceCertificate, { VerifyAttendance } from "@/pages/AttendanceCertificate";
 import DiplomaView from "@/pages/DiplomaView";
 import VerifyDiploma from "@/pages/VerifyDiploma";
 
@@ -36,6 +37,8 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/verificar/:code" element={<VerifyDiploma />} />
+          <Route path="/verificar-asistencia/:code" element={<VerifyAttendance />} />
+          <Route path="/certificado-asistencia/:code" element={<Protected><AttendanceCertificate /></Protected>} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/estudiantes" element={<Protected staff><Students /></Protected>} />
           <Route path="/cursos" element={<Protected staff><Courses /></Protected>} />

@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
 import QuizBuilder from "@/components/QuizBuilder";
 import { MaterialsEditor } from "@/components/Materials";
+import CourseReport from "@/components/CourseReport";
 import { CourseForm } from "@/pages/Courses";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,11 +126,13 @@ export default function CourseEditor() {
           <TabsTrigger value="modules" data-testid="tab-modules">Módulos</TabsTrigger>
           <TabsTrigger value="final" data-testid="tab-final">Evaluación final</TabsTrigger>
           <TabsTrigger value="students" data-testid="tab-students">Matriculados</TabsTrigger>
+          <TabsTrigger value="report" data-testid="tab-report">Reporte OTEC</TabsTrigger>
           <TabsTrigger value="info" data-testid="tab-info">Datos del curso</TabsTrigger>
         </TabsList>
         <TabsContent value="modules"><ModulesTab course={course} reload={load} /></TabsContent>
         <TabsContent value="final"><FinalExamTab course={course} /></TabsContent>
         <TabsContent value="students"><EnrollmentsTab courseId={id} /></TabsContent>
+        <TabsContent value="report"><CourseReport courseId={id} /></TabsContent>
         <TabsContent value="info"><div className="bg-white border rounded-xl p-6 max-w-xl"><CourseForm initial={{ title: course.title, description: course.description, code: course.code, hours: course.hours, auto_enroll: course.auto_enroll, published: course.published }} onSave={saveInfo} /></div></TabsContent>
       </Tabs>
     </>
