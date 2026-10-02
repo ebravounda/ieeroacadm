@@ -1,0 +1,26 @@
+{
+  "summary": "Backend-only testing of admin seed (info@iberoacademy.cl) and welcome-on-enrollment feature. 10/10 pytest tests passed. Verified: (1) startup seeds admin info@iberoacademy.cl with role=admin, active=True; (2) OTP login flow works for admin (code read from db.otp_codes); GET /api/auth/me returns admin; (3) core.welcome_email_html contains all required pieces — student email as 'Usuario:', 6-digit code explanation, course title, '4 módulos', '20 horas', 'examen', 'examen final', 'certificado', 'meticuloso', 'tiempo mínimo', tracking of 'ingresos'/'tiempo'; no <form>/<input>; (4) POST /api/users with course_id (role=estudiante) creates user + enrolls + schedules welcome via asyncio.create_task; (5) POST /api/enrollments creates one enrollment and welcome; duplicate call returns existing enrollment and does NOT create extra document (idempotent via existing check at server.py:184-186, so send_welcome is NOT fired twice); (6) Enrollment API responds in <5s (actual ~0.3s) — email not blocking; response has no mongo _id; (7) backend logs free of 'Welcome email failed' entries during run; (8) Regression: GET /api/courses works. All test courses/users/enrollments cleaned up after the run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_welcome_enrollment.py",
+    "/app/test_reports/pytest/iteration9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py enroll() correctly checks for existing enrollment BEFORE insert and only fires asyncio.create_task(send_welcome(...)) on a new insert — so re-enroll attempts won't spam the inbox. Good.",
+    "send_welcome swallows all exceptions and logs 'Welcome email failed: ...' — this is fine for not breaking enrollment, but means failed welcome emails are invisible to admins. Consider surfacing in an admin audit log or settings page.",
+    "welcome_email_html uses login_url only if PUBLIC_BASE starts with https://. PUBLIC_BASE is set lazily from the first authenticated request via remember_public_base; on a cold boot before any login happens, enrollments triggered (e.g. by register/auto_enroll flows if admin pre-created users) will send welcome emails WITHOUT a login button. Minor UX regression; could persist PUBLIC_BASE eagerly or hardcode fallback from REACT_APP_BACKEND_URL / env.",
+    "server.py:462-464 add_user: enroll() is awaited BEFORE returning. Since enroll itself only awaits DB ops and schedules the email via create_task, response time is fine (~300ms observed). OK.",
+    "No rate limit on POST /api/enrollments beyond staff_only dep. Admins can bulk-enroll which will spawn many parallel send_welcome tasks; httpx client inside send_email creates a fresh AsyncClient each call — acceptable at admin scale but inefficient for CSV import of thousands."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_welcome_enrollment.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "not tested (as requested)"},
+  "test_credentials": "admin info@iberoacademy.cl (passwordless OTP from db.otp_codes). Legacy admin ed0.2580@gmail.com NOT used in this run.",
+  "seed_data_creation": "Transient: 1 TEST course (3 modules), 2 TEST users (@resend.dev), 2 enrollments — all deleted in module teardown fixture. Verified mongo clean post-run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ADMIN_EMAIL now = info@iberoacademy.cl in backend/.env; startup upserts role=admin,active=True on existing record. OTP triggered once during this run for admin login (acceptable per task note). welcome email path exercised through POST /api/users and POST /api/enrollments; CSV import path (POST /api/users/import) was NOT exercised but shares the same enroll() -> send_welcome fire-and-forget code path."
+}
