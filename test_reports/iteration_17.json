@@ -1,0 +1,25 @@
+{
+  "summary": "Verified final-exam copy protection end-to-end. Backend: SubmitIn exposes copy_attempts (default 0), POST /courses/{id}/final-exam/submit persists behavior.copy_attempts, GET /submissions returns it to admin (no _id leak). 3/3 pytest tests pass. Frontend: /curso/{id}/final renders ExamRunner with protect=true -> data-testid=exam-copy-protected-notice visible, wrapper has CSS user-select:none (textarea excluded via [&_textarea]:select-text), copy/cut/contextmenu/dragstart events are preventDefault'd, Ctrl+C emits sonner toast 'Copiar contenido del examen final no está permitido'; MC options remain selectable; submit works; copy_attempts (3 blocked events in this run) persisted and shown in admin Evaluaciones detail tile data-testid=submission-copy-attempts. ModuleView ExamRunner is NOT protected (no notice / no copy guard) by code review (protect prop omitted). Regression surfaces (impersonation, quiz draws, Módulo 0) untouched.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_final_exam_copyguard.py",
+    "/app/test_reports/pytest/iteration17.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "useCopyGuard sel() uses falsy-return pattern `(e.type !== 'selectstart' || e.target?.tagName !== 'TEXTAREA') && block(e)` - works but readability suffers; prefer early-return guard.",
+    "PrintScreen handling calls navigator.clipboard.writeText('') to try to blank the clipboard after screenshot - this requires document focus and in most browsers requires user gesture; not harmful but may silently reject. Consider removing or documenting.",
+    "copy_attempts increments on ANY blocked event (copy, cut, contextmenu, dragstart, non-textarea selectstart, each Ctrl+<key>) - a single user right-click can bump the counter and the value may inflate quickly. Not a bug, but admin tile label 'intentos de copia' may be slightly misleading when it also counts contextmenu/select events.",
+    "Keyboard guard blocks Ctrl/Cmd+S/P/U which could inconvenience legitimate browser navigation outside the exam if the listener leaks; cleanup looks correct (useEffect return removes listeners) so OK.",
+    "Guard uses document-level listeners; if a modal or iframe steals focus the capture may not run. Current app has no such case for final exam."
+  ],
+  "updated_files": ["/app/backend/tests/test_final_exam_copyguard.py"],
+  "success_rate": {"backend": "100% (3/3)", "frontend": "100%"},
+  "test_credentials": "Minted student + admin JWTs directly from JWT_SECRET (passwordless OTP unused).",
+  "seed_data_creation": "Created TEST_cgui_course / TEST_cgui_mod / TEST_cg_course / TEST_cg_mod plus TEST_cgui_* users and enrollments. All removed via regex cleanup; test fixtures also self-teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Final-exam copy-protection feature is complete and working on both backend and frontend. Pytest file /app/backend/tests/test_final_exam_copyguard.py (run with -n 0, needs REACT_APP_BACKEND_URL + MONGO_URL + DB_NAME + JWT_SECRET env from /app/{backend,frontend}/.env). Module exams intentionally omit the protect prop so no regression test for them is needed. Admin tile selector: [data-testid=submission-copy-attempts].",
+  "rca of the issue": "N/A - feature implementation matches spec."
+}
