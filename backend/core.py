@@ -16,7 +16,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+import mimetypes
 
 load_dotenv(Path(__file__).parent / ".env")
 logger = logging.getLogger("otec")
@@ -26,9 +26,12 @@ db = client[os.environ["DB_NAME"]]
 
 JWT_ALGORITHM = "HS256"
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
-EMAIL_KEY = os.environ["EMERGENT_EMAIL_KEY"]
+EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY", "")
 EMAIL_FROM_NAME = os.environ["EMAIL_FROM_NAME"]
-LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+LOCAL_STORAGE_DIR = os.environ.get("LOCAL_STORAGE_DIR", "")
 PUBLIC_BASE = ""
 
 
@@ -175,11 +178,15 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 async def send_email(*, to: str, subject: str, html: str):
     _assert_safe_email(subject, html)
-    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
     try:
         async with httpx.AsyncClient(timeout=30) as c:
-            resp = await c.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
-                                headers={"X-Email-Key": EMAIL_KEY}, json=payload)
+            if RESEND_API_KEY:
+                resp = await c.post("https://api.resend.com/emails", headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                                    json={"from": f"{EMAIL_FROM_NAME} <{os.environ['MAIL_FROM']}>", "to": [to],
+                                          "subject": subject, "html": html})
+            else:
+                resp = await c.post(f"{EMAIL_BASE_URL}/api/v1/email/send", headers={"X-Email-Key": EMAIL_KEY},
+                                    json={"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME})
         resp.raise_for_status()
         return resp.json().get("id")
     except httpx.HTTPStatusError as e:
@@ -317,8 +324,19 @@ APP_NAME = "iberoacademy"
 _storage_key = None
 
 
+def _local_path(path: str) -> Path:
+    base = Path(LOCAL_STORAGE_DIR).resolve()
+    p = (base / path).resolve()
+    if base not in p.parents:
+        raise HTTPException(400, "Ruta inválida")
+    return p
+
+
 def init_storage(force: bool = False):
     global _storage_key
+    if LOCAL_STORAGE_DIR:
+        Path(LOCAL_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+        return "local"
     if _storage_key and not force:
         return _storage_key
     resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": LLM_KEY}, timeout=30)
@@ -328,6 +346,11 @@ def init_storage(force: bool = False):
 
 
 def put_object(path: str, data: bytes, content_type: str) -> dict:
+    if LOCAL_STORAGE_DIR:
+        p = _local_path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(data)
+        return {"path": path, "size": len(data)}
     resp = requests.put(f"{STORAGE_URL}/objects/{path}",
                         headers={"X-Storage-Key": init_storage(), "Content-Type": content_type},
                         data=data, timeout=300)
@@ -340,6 +363,11 @@ def put_object(path: str, data: bytes, content_type: str) -> dict:
 
 
 def get_object(path: str):
+    if LOCAL_STORAGE_DIR:
+        p = _local_path(path)
+        if not p.is_file():
+            raise HTTPException(404, "Archivo no encontrado")
+        return p.read_bytes(), mimetypes.guess_type(p.name)[0] or "application/octet-stream"
     resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": init_storage()}, timeout=120)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
@@ -381,10 +409,21 @@ async def analyze_ai_usage(questions: list, answers: dict, behavior: dict) -> di
         '"summary": "<explicación breve en español>", "answers": [{"question_id": "...", "percentage": <0-100>, '
         '"reasoning": "<motivo breve en español>"}]}'
     )
-    chat = LlmChat(api_key=LLM_KEY, session_id=new_id(), system_message=AI_SYSTEM).with_model(
-        "anthropic", "claude-sonnet-5-5")
-    raw = await chat.send_message(UserMessage(text=prompt))
-    text = raw if isinstance(raw, str) else str(raw)
+    if OPENAI_API_KEY:
+        async with httpx.AsyncClient(timeout=120) as c:
+            resp = await c.post("https://api.openai.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                                json={"model": os.environ["OPENAI_MODEL"], "response_format": {"type": "json_object"},
+                                      "messages": [{"role": "system", "content": AI_SYSTEM},
+                                                   {"role": "user", "content": prompt}]})
+        resp.raise_for_status()
+        text = resp.json()["choices"][0]["message"]["content"] or ""
+    else:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+        chat = LlmChat(api_key=LLM_KEY, session_id=new_id(), system_message=AI_SYSTEM).with_model(
+            "anthropic", "claude-sonnet-5-5")
+        raw = await chat.send_message(UserMessage(text=prompt))
+        text = raw if isinstance(raw, str) else str(raw)
     match = re.search(r"\{.*\}", text, re.S)
     data = json.loads(match.group(0))
     data["percentage"] = max(0, min(100, int(data.get("percentage", 0))))

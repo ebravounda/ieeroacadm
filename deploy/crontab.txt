@@ -1,0 +1,11 @@
+# Zona horaria del servidor: America/Santiago (ver guía, paso 1).
+# Reemplaza TU_SECRETO por el valor de WEBHOOK_CRON_SECRET del backend/.env
+
+# Recordatorio de clases en vivo - cada 15 minutos
+*/15 * * * * curl -s -X POST https://iberoacademy.cl/api/cron/class-reminders -H "Authorization: Bearer TU_SECRETO" -H "Content-Type: application/json" -d '{}'
+
+# Alertas de inactividad - todos los días 10:00
+0 10 * * * curl -s -X POST https://iberoacademy.cl/api/cron/inactivity-alerts -H "Authorization: Bearer TU_SECRETO" -H "Content-Type: application/json" -d '{}'
+
+# Reporte semanal OTEC - lunes 08:00
+0 8 * * 1 curl -s -X POST https://iberoacademy.cl/api/cron/weekly-report -H "Authorization: Bearer TU_SECRETO" -H "Content-Type: application/json" -d '{}'

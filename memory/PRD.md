@@ -59,6 +59,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - 2026-10-02: Legal pages /terminos and /privacidad (frontend/src/pages/Legal.jsx) per Chile (Ley 19.496, 19.628, 21.719) and Spain/EU (RGPD, LOPDGDD, LSSI, RDL 1/2007); company IBERO ACADEMY SpA RUT 78.486.869-9 Providencia. Footer links + company data. Mandatory accept checkbox in enroll dialog; backend /public/checkout requires accept_terms=true, stores users.terms_accepted_at. No cookie banner (customer choice). Placeholder pending: [correo de contacto].
 - 2026-10-02: Customer asked about self-hosting on aaPanel + Cloudflare. Self-host caveats: EMERGENT_LLM_KEY, EMERGENT_EMAIL_KEY, object storage (INTEGRATION_PROXY_URL) and .emergent/crons.yml do not work outside Emergent → would need own OpenAI/Resend/storage keys + system cron (POST /api/cron/* with Bearer WEBHOOK_CRON_SECRET).
 
+- 2026-10-02: Self-host support (aaPanel, iberoacademy.cl) via env switches in core.py: RESEND_API_KEY+MAIL_FROM → direct Resend API; OPENAI_API_KEY+OPENAI_MODEL → direct OpenAI chat completions (json_object); LOCAL_STORAGE_DIR → files on disk (path-traversal guarded). Without them, Emergent email/LLM/storage are used (preview unchanged). Deploy kit in /app/deploy: GUIA_AAPANEL.md, backend.env.example, nginx_iberoacademy.conf, crontab.txt (crons POST with Bearer WEBHOOK_CRON_SECRET and body {}).
+
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
 - P2: Attendance reports per live class export; certificate PDF generation server-side.
