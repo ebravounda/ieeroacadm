@@ -1,27 +1,46 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ArrowLeft, CheckCircle2, Circle, Lock, Clock } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Lock, Clock, ChevronDown } from "lucide-react";
 import { api, errMsg } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
 import ExamRunner, { ExamResult } from "@/components/ExamRunner";
-import { MaterialBody, MAT_ICON, embedUrl } from "@/components/Materials";
+import { MaterialBody, MAT_ICON, embedUrl, groupSections } from "@/components/Materials";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 
 function TaskCard({ mat, i, done, onDone, staff }) {
   const Icon = MAT_ICON[mat.type];
   return (
-    <div className={`bg-white border rounded-xl p-5 sm:p-6 ${done ? "border-emerald-200" : ""}`} data-testid={`task-${i}`}>
+    <div className={`bg-white border rounded-xl p-5 sm:p-6 ${done ? "border-emerald-200" : ""}`} data-testid={`task-${mat.id}`}>
       <div className="flex items-center gap-3 mb-4">
         <span className="h-9 w-9 rounded-lg bg-teal-50 text-teal-700 grid place-items-center"><Icon size={18} /></span>
-        <div className="flex-1"><p className="text-xs uppercase tracking-wider text-slate-400">Tarea {i + 1}</p><p className="font-semibold">{mat.title}</p></div>
-        {done ? <CheckCircle2 className="text-emerald-600" data-testid={`task-done-${i}`} /> : <Circle className="text-slate-300" />}
+        <div className="flex-1"><p className="text-xs uppercase tracking-wider text-slate-400">Contenido {i + 1}</p><p className="font-semibold">{mat.title}</p></div>
+        {done ? <CheckCircle2 className="text-emerald-600" data-testid={`task-done-${mat.id}`} /> : <Circle className="text-slate-300" />}
       </div>
       <MaterialBody m={mat} />
-      {!staff && !done && <Button size="sm" className="mt-4" onClick={onDone} data-testid={`task-complete-${i}`}>Marcar tarea como completada</Button>}
+      {!staff && !done && <Button size="sm" className="mt-4" onClick={onDone} data-testid={`task-complete-${mat.id}`}>Marcar como revisado</Button>}
     </div>
+  );
+}
+
+function SectionBlock({ g, k, doneIds, staff, onDone }) {
+  const done = g.items.filter((x) => doneIds.includes(x.id)).length;
+  const full = g.items.length > 0 && done === g.items.length;
+  return (
+    <details open={k === 0 || undefined} className="group bg-slate-50 border rounded-2xl mb-4" data-testid={`module-section-${k}`}>
+      <summary className="flex items-center gap-3 p-4 sm:p-5 cursor-pointer list-none">
+        <span className={`h-9 w-9 rounded-full grid place-items-center text-sm font-bold ${full ? "bg-emerald-100 text-emerald-700" : "bg-teal-100 text-teal-800"}`}>{full ? <CheckCircle2 size={18} /> : k + 1}</span>
+        <div className="flex-1"><p className="font-semibold">{g.title || `Sección ${k + 1}`}</p>{g.description && <p className="text-xs text-slate-500">{g.description}</p>}</div>
+        {!staff && <span className="text-xs font-mono text-slate-500" data-testid={`module-section-progress-${k}`}>{done}/{g.items.length}</span>}
+        <ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-4 px-4 pb-4 sm:px-5 sm:pb-5">
+        {g.items.length === 0 && <p className="text-sm text-slate-400">Esta sección aún no tiene contenidos.</p>}
+        {g.items.map((x, i) => <TaskCard key={x.id} mat={x} i={i} staff={staff} done={doneIds.includes(x.id)} onDone={() => onDone(x.id)} />)}
+      </div>
+    </details>
   );
 }
 
@@ -55,7 +74,7 @@ function ExamSection({ m, onResult, result, setResult }) {
   if (!m.tasks_done || !m.time_ok) {
     return (
       <div className="bg-slate-100 rounded-xl p-6 flex flex-wrap items-center gap-3 text-slate-600" data-testid="module-exam-locked">
-        <Lock size={18} /> {!m.tasks_done ? "Completa todas las tareas del módulo para habilitar el examen." : `Debes dedicar al menos ${m.min_minutes} min al módulo para habilitar el examen.`}
+        <Lock size={18} /> {!m.tasks_done ? "Revisa todos los contenidos del módulo para habilitar el examen." : `Debes dedicar al menos ${m.min_minutes} min al módulo para habilitar el examen.`}
         {last?.passed === false && <span className="text-rose-600 text-sm">(Reprobaste el intento anterior: debes repetir las tareas.)</span>}
       </div>
     );
@@ -98,9 +117,9 @@ export default function ModuleView() {
       {!staff && !m.completed && m.min_minutes > 0 && <TimeBar m={m} />}
       {mats.length > 0 && (
         <>
-          <div className="flex items-center justify-between mb-3"><h3 className="text-xl font-semibold">Tareas del módulo</h3>{!staff && <span className="text-sm text-slate-500" data-testid="tasks-progress">{doneCount}/{mats.length}</span>}</div>
+          <div className="flex items-center justify-between mb-3"><h3 className="text-xl font-semibold">Contenidos del módulo</h3>{!staff && <span className="text-sm text-slate-500" data-testid="tasks-progress">{doneCount}/{mats.length}</span>}</div>
           {!staff && <Progress value={(doneCount / mats.length) * 100} className="h-2 mb-4" />}
-          <div className="space-y-4 mb-10">{mats.map((x, i) => <TaskCard key={x.id} mat={x} i={i} staff={staff} done={doneIds.includes(x.id)} onDone={() => completeTask(x.id)} />)}</div>
+          <div className="mb-10">{groupSections(m.sections, mats).map((g, k) => <SectionBlock key={g.id} g={g} k={k} doneIds={doneIds} staff={staff} onDone={completeTask} />)}</div>
         </>
       )}
       {m.completed && !hasQuiz && <p className="mb-6 flex items-center gap-2 text-emerald-700 font-medium" data-testid="module-completed-badge"><CheckCircle2 size={18} /> Módulo completado</p>}

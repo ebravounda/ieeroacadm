@@ -88,13 +88,20 @@ class Quiz(BaseModel):
 
 class Material(BaseModel):
     id: str = Field(default_factory=new_id)
-    type: Literal["texto", "video", "archivo", "enlace"]
+    type: Literal["texto", "video", "archivo", "enlace", "presentacion"]
     title: str
     body: str = ""
     url: str = ""
     file_id: str = ""
     file_name: str = ""
     content_type: str = ""
+    section_id: str = ""
+
+
+class Section(BaseModel):
+    id: str = Field(default_factory=new_id)
+    title: str = ""
+    description: str = ""
 
 
 class CourseIn(BaseModel):
@@ -119,6 +126,7 @@ class ModuleIn(BaseModel):
     order: Optional[int] = None
     min_minutes: int = Field(default=0, ge=0)
     materials: List[Material] = []
+    sections: List[Section] = []
     quiz: Quiz = Quiz()
 
 
