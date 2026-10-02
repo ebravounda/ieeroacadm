@@ -29,7 +29,7 @@ cd /www/wwwroot/iberoacademy/backend
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
+pip install -r requirements-server.txt
 mkdir -p /www/wwwroot/iberoacademy/storage
 cp ../deploy/backend.env.example .env
 nano .env        # completa tus claves y secretos
@@ -90,7 +90,7 @@ aaPanel → Cron → *Backup database* (MongoDB) diario, y respaldo de la carpet
 ## Actualizar a una nueva versión
 ```bash
 cd /www/wwwroot/iberoacademy && git pull
-cd backend && source venv/bin/activate && pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ && pm2 restart iberoacademy-api
+cd backend && source venv/bin/activate && pip install -r requirements-server.txt && pm2 restart iberoacademy-api
 cd ../frontend && yarn install && yarn build
 ```
 
