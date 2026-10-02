@@ -13,7 +13,7 @@ cd iberoacademy
 ## 1. Preparar el servidor
 ```bash
 timedatectl set-timezone America/Santiago
-apt update && apt install -y python3.11 python3.11-venv curl git
+apt update && apt install -y python3 python3-venv python3-dev build-essential curl git
 ```
 En **aaPanel → App Store** instala: **Nginx**, **MongoDB** (7.x), **Node.js version manager** (Node 20) y **PM2 Manager**.
 Luego: `npm install -g yarn`
@@ -26,7 +26,7 @@ Luego: `npm install -g yarn`
 ## 3. Backend (FastAPI)
 ```bash
 cd /www/wwwroot/iberoacademy/backend
-python3.11 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/
