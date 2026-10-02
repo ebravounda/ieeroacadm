@@ -20,7 +20,7 @@ function ModuleLine({ m }) {
       <div className="flex items-center gap-3">
         <Icon size={18} className={s.cls} />
         <p className="flex-1 text-sm font-medium">{m.title}</p>
-        <span className="text-xs text-slate-500">{m.tasks_done}/{m.tasks_total} tareas</span>
+        <span className="text-xs text-slate-500">{m.tasks_done}/{m.tasks_total} tareas{m.min_minutes > 0 && m.state === "en_curso" ? ` · ${Math.floor(m.time_spent_min)}/${m.min_minutes} min` : ""}</span>
         {m.exam_status === "en_revision" && <span className="text-xs rounded-full px-2 py-0.5 bg-indigo-100 text-indigo-700 flex items-center gap-1"><Hourglass size={12} /> En revisión</span>}
         <span className={`text-xs font-semibold ${s.cls}`} data-testid={`progress-module-state-${m.id}`}>{s.label}</span>
         {m.nota != null && <span className="text-xs font-mono font-bold w-8 text-right">{fmtNota(m.nota)}</span>}

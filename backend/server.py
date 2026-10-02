@@ -16,7 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
                   get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token,
-                  class_reminder_html, inactivity_email_html)
+                  class_reminder_html, inactivity_email_html, weekly_report_html)
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -109,6 +109,7 @@ class ModuleIn(BaseModel):
     content: str = ""
     video_url: str = ""
     order: Optional[int] = None
+    min_minutes: int = Field(default=0, ge=0)
     materials: List[Material] = []
     quiz: Quiz = Quiz()
 
@@ -211,6 +212,18 @@ def score_of(results):
     if not results or any(v is None for v in results.values()):
         return None
     return round(sum(results.values()) / len(results))
+
+
+async def module_minutes(user_id, module_id):
+    s = await db.module_sessions.find_one({"user_id": user_id, "module_id": module_id}, {"_id": 0, "duration_sec": 1})
+    return round((s["duration_sec"] if s else 0) / 60, 1)
+
+
+async def require_min_time(user, m):
+    need = m.get("min_minutes", 0)
+    spent = await module_minutes(user["id"], m["id"])
+    if spent < need:
+        raise HTTPException(400, f"Debes dedicar al menos {need} min al módulo (llevas {spent:g} min)")
 
 
 def module_tasks_done(m, e):
@@ -376,6 +389,8 @@ async def heartbeat(body: Optional[HeartbeatIn] = None, user=Depends(get_current
         course_id = m["course_id"] if m else None
     if course_id and await db.enrollments.find_one({"user_id": user["id"], "course_id": course_id}):
         await track_time(db.course_sessions, {"user_id": user["id"], "course_id": course_id, "date": date}, t)
+        if body.module_id:
+            await track_time(db.module_sessions, {"user_id": user["id"], "module_id": body.module_id}, t)
     return {"ok": True}
 
 
@@ -547,6 +562,9 @@ async def get_module(module_id: str, user=Depends(get_current_user)):
         m["quiz"] = strip_answers(m.get("quiz"))
         m["completed_tasks"] = (e.get("completed_tasks") or {}).get(module_id, [])
         m["tasks_done"] = module_tasks_done(m, e)
+        m["time_spent_min"] = await module_minutes(user["id"], module_id)
+        m["min_minutes"] = m.get("min_minutes", 0)
+        m["time_ok"] = m["time_spent_min"] >= m["min_minutes"]
         m["last_submission"] = await last_submission(user["id"], m["course_id"], module_id)
     return m
 
@@ -571,6 +589,7 @@ async def complete_module(module_id: str, user=Depends(get_current_user)):
         raise HTTPException(400, "Este módulo requiere aprobar la evaluación")
     if not module_tasks_done(m, e):
         raise HTTPException(400, "Debes completar todas las tareas del módulo")
+    await require_min_time(user, m)
     await db.enrollments.update_one({"id": e["id"]}, {"$addToSet": {"completed_modules": module_id}})
     return {"ok": True}
 
@@ -587,6 +606,7 @@ async def apply_result(sub):
                                                             "$set": {f"module_results.{mid}": sub["score"]}})
         else:
             await db.enrollments.update_one({"id": e["id"]}, {"$set": {f"completed_tasks.{mid}": []}})
+            await db.module_sessions.delete_one({"user_id": sub["user_id"], "module_id": mid})
         return None
     if not sub["passed"]:
         return None
@@ -641,6 +661,7 @@ async def submit_module(module_id: str, body: SubmitIn, bg: BackgroundTasks, use
         raise HTTPException(400, "Ya aprobaste este módulo")
     if not module_tasks_done(m, e):
         raise HTTPException(400, "Debes completar todas las tareas del módulo antes del examen")
+    await require_min_time(user, m)
     return await save_submission(user, m["course_id"], module_id, m["quiz"], body, bg)
 
 
@@ -928,6 +949,8 @@ async def my_progress(user=Depends(get_current_user)):
         for m in modules:
             st = status[m["id"]]
             mats = m.get("materials", [])
+            spent = await module_minutes(user["id"], m["id"])
+            missing = max(0, m.get("min_minutes", 0) - spent)
             pending = [x["title"] for x in mats if x["id"] not in done_tasks.get(m["id"], [])]
             has_quiz = bool(m.get("quiz", {}).get("questions"))
             last = await last_submission(user["id"], course["id"], m["id"]) if has_quiz else None
@@ -936,12 +959,15 @@ async def my_progress(user=Depends(get_current_user)):
                          "tasks_total": len(mats), "tasks_done": len(mats) - len(pending),
                          "pending_tasks": pending if state == "en_curso" else [], "has_quiz": has_quiz,
                          "exam_status": last["status"] if last else None,
+                         "time_spent_min": spent, "min_minutes": m.get("min_minutes", 0),
                          "nota": to_nota(e.get("module_results", {}).get(m["id"]), m.get("quiz", {}).get("pass_score", 75))})
             if state == "en_curso" and not next_step:
                 if last and last["status"] == "en_revision":
                     text = f"Espera la corrección del examen de “{m['title']}”"
                 elif pending:
                     text = f"Completa la tarea “{pending[0]}” de “{m['title']}”"
+                elif missing > 0:
+                    text = f"Dedica {int(-(-missing // 1))} min más al módulo “{m['title']}” para habilitar el examen"
                 elif has_quiz:
                     text = f"Rinde el examen de “{m['title']}”"
                 else:
@@ -1060,6 +1086,29 @@ async def cron_inactivity_alerts(request: Request, bg: BackgroundTasks):
     if not await accept_cron(request):
         return {"ok": True, "duplicate": True}
     bg.add_task(send_inactivity_alerts)
+    return {"ok": True}
+
+
+async def send_weekly_reports(recipients=None):
+    courses = await db.courses.find({}, {"_id": 0, "id": 1}).sort("created_at", 1).to_list(500)
+    reports = [await course_report(c["id"], None) for c in courses]
+    if recipients is None:
+        recipients = [u["email"] async for u in db.users.find({"role": "admin", "active": True}, {"_id": 0, "email": 1})]
+    html = weekly_report_html(reports, now().astimezone(ZoneInfo("America/Santiago")).strftime("%d-%m-%Y"))
+    for to in recipients:
+        try:
+            await send_email(to=to, subject=f"Reporte semanal OTEC – {EMAIL_FROM_NAME}", html=html)
+        except Exception as ex:
+            logger.error(f"Weekly report email failed for {to}: {ex}")
+        await asyncio.sleep(0.6)
+
+
+@api.post("/cron/weekly-report")
+async def cron_weekly_report(request: Request, bg: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    if not await accept_cron(request):
+        return {"ok": True, "duplicate": True}
+    bg.add_task(send_weekly_reports)
     return {"ok": True}
 
 
@@ -1282,6 +1331,7 @@ async def startup():
     await db.diplomas.create_index("code", unique=True)
     await db.sessions.create_index([("user_id", 1), ("date", 1)])
     await db.course_sessions.create_index([("user_id", 1), ("course_id", 1), ("date", 1)])
+    await db.module_sessions.create_index([("user_id", 1), ("module_id", 1)])
     try:
         await asyncio.to_thread(init_storage)
     except Exception as e:

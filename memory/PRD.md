@@ -44,6 +44,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - OTEC/SENCE course report tab in CourseEditor (GET /api/courses/{id}/report) + CSV export.
 - Attendance certificates per finished live class (POST /api/live-classes/{id}/certificate, /certificado-asistencia/:code, public /verificar-asistencia/:code with QR).
 - Per-course time tracking: heartbeat sends course_id/module_id from current route → db.course_sessions; OTEC report shows days/minutes per course plus platform totals.
+- Weekly OTEC report email: cron Monday 08:00 America/Santiago → POST /api/cron/weekly-report; HTML tables per course sent to all active admins.
+- Module minimum time (min_minutes, default 0): db.module_sessions tracks time on module page; exam/complete blocked until reached; reset on failed exam.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

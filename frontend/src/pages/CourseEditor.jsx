@@ -17,7 +17,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
-const EMPTY_MODULE = { title: "", description: "", content: "", video_url: "", materials: [], quiz: { questions: [], pass_score: 75 } };
+const EMPTY_MODULE = { title: "", description: "", content: "", video_url: "", min_minutes: 0, materials: [], quiz: { questions: [], pass_score: 75 } };
 
 function ModuleDialog({ open, onClose, initial, onSave }) {
   const [m, setM] = useState(EMPTY_MODULE);
@@ -31,6 +31,11 @@ function ModuleDialog({ open, onClose, initial, onSave }) {
           <div><Label>Título</Label><Input value={m.title} onChange={set("title")} data-testid="module-title-input" /></div>
           <div><Label>Descripción breve</Label><Input value={m.description} onChange={set("description")} data-testid="module-description-input" /></div>
           <div><Label>Introducción del módulo</Label><Textarea rows={4} value={m.content} onChange={set("content")} data-testid="module-content-input" /></div>
+          <div className="flex items-center gap-3">
+            <Label>Tiempo mínimo en el módulo antes del examen (minutos)</Label>
+            <Input type="number" min={0} className="w-24" value={m.min_minutes ?? 0} onChange={(e) => setM({ ...m, min_minutes: Math.max(0, Number(e.target.value) || 0) })} data-testid="module-min-minutes-input" />
+            <span className="text-xs text-slate-500">0 = sin mínimo</span>
+          </div>
           <h4 className="font-semibold pt-3">Material y tareas del módulo</h4>
           <p className="text-xs text-slate-500 -mt-2">Lecturas, videos, presentaciones PPT, PDF, imágenes o enlaces. El estudiante debe completar todas las tareas para rendir el examen.</p>
           <MaterialsEditor materials={m.materials} onChange={(materials) => setM({ ...m, materials })} />
@@ -61,7 +66,7 @@ function ModulesTab({ course, reload }) {
           <span className="h-10 w-10 rounded-lg bg-teal-50 text-teal-700 font-heading font-bold grid place-items-center">{i + 1}</span>
           <div className="flex-1 min-w-0">
             <p className="font-semibold">{m.title}</p>
-            <p className="text-xs text-slate-500">{m.materials?.length || 0} tareas · {m.quiz?.questions?.length || 0} preguntas · aprobación {m.quiz?.pass_score ?? 75}% {i > 0 && <>· <Lock size={10} className="inline" /> requiere módulo {i}</>}</p>
+            <p className="text-xs text-slate-500">{m.materials?.length || 0} tareas · {m.quiz?.questions?.length || 0} preguntas · aprobación {m.quiz?.pass_score ?? 75}% {m.min_minutes > 0 && `· mín. ${m.min_minutes} min `}{i > 0 && <>· <Lock size={10} className="inline" /> requiere módulo {i}</>}</p>
           </div>
           <Button size="icon" variant="ghost" onClick={() => setEditing(m)} data-testid={`edit-module-${i}`}><Pencil size={16} /></Button>
           <Button size="icon" variant="ghost" onClick={() => del(m.id)} data-testid={`delete-module-${i}`}><Trash2 size={16} /></Button>

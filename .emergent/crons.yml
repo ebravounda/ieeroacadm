@@ -14,3 +14,11 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/inactivity-alerts"
     method: POST
     enabled: true
+  - name: weekly-otec-report
+    description: "Envía el reporte OTEC de todos los cursos a los administradores cada lunes 08:00 Chile"
+    cron: "0 8 * * 1"
+    timezone: "America/Santiago"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/weekly-report"
+    method: POST
+    enabled: true

@@ -221,6 +221,39 @@ def inactivity_email_html(name, days, course, progress, next_step) -> str:
     )
 
 
+def weekly_report_html(reports, date) -> str:
+    def n(v):
+        return "—" if v is None else f"{v:.1f}".replace(".", ",")
+    th = 'style="text-align:left;padding:6px 8px;background:#0f172a;color:#fff;font-size:12px"'
+    td = 'style="padding:6px 8px;border-bottom:1px solid #e2e8f0;font-size:12px"'
+    parts = []
+    for r in reports:
+        c, s = r["course"], r["summary"]
+        rows = "".join(
+            f'<tr><td {td}>{escape(x["student_name"])}<br><span style="color:#64748b">{escape(x["rut"] or x["email"])}</span></td>'
+            f'<td {td}>{x["days_attended"]}</td><td {td}>{x["total_minutes"]} min</td>'
+            f'<td {td}>{x["live_attended"]}/{x["live_total"]}</td><td {td}>{x["modules_done"]}/{x["modules_total"]}</td>'
+            f'<td {td}>{n(x["modules_avg_nota"])}</td><td {td}>{n(x["final_nota"])}</td>'
+            f'<td {td}><b>{n(x["overall_nota"])}</b></td><td {td}>{escape(x["status"])}</td></tr>'
+            for x in r["rows"]) or f'<tr><td {td} colspan="9">Sin estudiantes matriculados.</td></tr>'
+        heads = "".join(f"<th {th}>{h}</th>" for h in ("Estudiante", "Días curso", "Permanencia", "Clases", "Módulos",
+                                                        "Prom. mód.", "Ex. final", "Nota final", "Estado"))
+        parts.append(
+            f'<h3 style="margin:24px 0 4px">{escape(c["title"])} <span style="color:#64748b;font-weight:normal">{escape(c["code"] or "")}</span></h3>'
+            f'<p style="margin:0 0 8px;color:#475569;font-size:13px">{s["students"]} matriculados · {s["approved"]} aprobados · {s["live_classes"]} clases en vivo · {c["hours"]} horas</p>'
+            f'<table role="presentation" cellspacing="0" style="border-collapse:collapse;width:100%"><tr>{heads}</tr>{rows}</table>')
+    body = "".join(parts) or "<p>No hay cursos registrados.</p>"
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 4px">{escape(EMAIL_FROM_NAME)} · Reporte semanal OTEC</h2>'
+        f'<p style="margin:0;color:#475569">Corte al {escape(date)}. Notas en escala 1,0 – 7,0. Permanencia medida dentro de cada curso.</p>'
+        f'{body}'
+        '<p style="margin-top:24px;font-size:13px">Para descargar el detalle completo en CSV, ingresa a Cursos y módulos → curso → pestaña “Reporte OTEC”.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado automáticamente cada lunes por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
 def grade_email_html(name, course, exam, nota, score, passed, feedback) -> str:
     nota_txt = f"{nota:.1f}".replace(".", ",")
     color = "#059669" if passed else "#e11d48"
