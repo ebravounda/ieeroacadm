@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Bot, RefreshCw, Copy, Eye, Clock } from "lucide-react";
+import { Bot, RefreshCw, Copy, Eye, Clock, ShieldAlert } from "lucide-react";
 import { api, errMsg, fmtDate, fmtNota } from "@/lib/api";
 import { PageHeader, AiBadge, Empty } from "@/components/Common";
 import { Button } from "@/components/ui/button";
@@ -72,9 +72,10 @@ function Detail({ sub, onReanalyze, busy, onGraded }) {
         ) : <p className="mt-2 text-sm text-slate-300">Estado: {sub.ai_status}</p>}
         <Button size="sm" variant="secondary" className="mt-4" disabled={busy} onClick={onReanalyze} data-testid="ai-detector-reanalyze"><RefreshCw size={14} className={`mr-1 ${busy ? "animate-spin" : ""}`} /> Reanalizar</Button>
       </div>
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
         <div className="border rounded-lg p-3"><Eye size={14} className="mx-auto mb-1" /><b className="text-lg">{sub.behavior.tab_switches}</b><p>cambios de pestaña</p></div>
         <div className="border rounded-lg p-3"><Copy size={14} className="mx-auto mb-1" /><b className="text-lg">{sub.behavior.paste_events}</b><p>textos pegados</p></div>
+        <div className="border rounded-lg p-3" data-testid="submission-copy-attempts"><ShieldAlert size={14} className="mx-auto mb-1" /><b className="text-lg">{sub.behavior.copy_attempts ?? 0}</b><p>intentos de copia</p></div>
         <div className="border rounded-lg p-3"><Clock size={14} className="mx-auto mb-1" /><b className="text-lg">{Math.round(sub.behavior.duration_sec / 60)}</b><p>minutos</p></div>
       </div>
       {sub.course_reset && <p className="text-sm bg-rose-50 border border-rose-200 text-rose-700 rounded-lg p-3" data-testid="submission-course-reset">Reprobó la evaluación final: su avance fue reiniciado y debe cursar todos los módulos nuevamente.</p>}

@@ -23,10 +23,30 @@ function Choice({ q, i, value, onChange }) {
   );
 }
 
-export default function ExamRunner({ quiz, submitUrl, onResult }) {
+const BLOCKED_KEYS = ["c", "x", "a", "p", "s", "u"];
+
+function useCopyGuard(enabled, stats) {
+  useEffect(() => {
+    if (!enabled) return;
+    const block = (e) => { e.preventDefault(); stats.current.copy += 1; toast.warning("Copiar contenido del examen final no está permitido"); };
+    const key = (e) => {
+      const k = (e.key || "").toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && BLOCKED_KEYS.includes(k)) block(e);
+      else if (k === "printscreen") { navigator.clipboard?.writeText("").catch(() => {}); block(e); }
+    };
+    const evs = ["copy", "cut", "contextmenu", "dragstart", "selectstart"];
+    const sel = (e) => (e.type !== "selectstart" || e.target?.tagName !== "TEXTAREA") && block(e);
+    evs.forEach((ev) => document.addEventListener(ev, sel));
+    document.addEventListener("keydown", key, true);
+    return () => { evs.forEach((ev) => document.removeEventListener(ev, sel)); document.removeEventListener("keydown", key, true); };
+  }, [enabled, stats]);
+}
+
+export default function ExamRunner({ quiz, submitUrl, onResult, protect = false }) {
   const [answers, setAnswers] = useState({});
   const [sending, setSending] = useState(false);
-  const stats = useRef({ tab: 0, paste: 0, start: Date.now() });
+  const stats = useRef({ tab: 0, paste: 0, copy: 0, start: Date.now() });
+  useCopyGuard(protect, stats);
 
   useEffect(() => {
     const vis = () => document.visibilityState === "hidden" && (stats.current.tab += 1);
@@ -38,7 +58,7 @@ export default function ExamRunner({ quiz, submitUrl, onResult }) {
     setSending(true);
     try {
       const { data } = await api.post(submitUrl, {
-        answers, tab_switches: stats.current.tab, paste_events: stats.current.paste,
+        answers, tab_switches: stats.current.tab, paste_events: stats.current.paste, copy_attempts: stats.current.copy,
         duration_sec: Math.round((Date.now() - stats.current.start) / 1000),
       });
       onResult(data);
@@ -47,7 +67,8 @@ export default function ExamRunner({ quiz, submitUrl, onResult }) {
   };
 
   return (
-    <div className="space-y-5" data-testid="exam-runner">
+    <div className={`space-y-5 ${protect ? "select-none [&_textarea]:select-text exam-protected" : ""}`} data-testid="exam-runner">
+      {protect && <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-3" data-testid="exam-copy-protected-notice">Examen protegido: no se puede copiar, seleccionar ni imprimir el contenido. Los intentos de copia quedan registrados.</p>}
       <div className="flex items-start gap-2 text-xs text-slate-600 bg-amber-50 border border-amber-200 rounded-lg p-3">
         <ShieldAlert size={16} className="text-amber-600 shrink-0" />
         Aprobación: {quiz.pass_score}% (nota 4,0). Se registran cambios de pestaña, texto pegado y tiempo. Las respuestas de desarrollo se analizan con IA y las corrige el docente.

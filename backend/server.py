@@ -145,6 +145,7 @@ class SubmitIn(BaseModel):
     answers: dict
     tab_switches: int = 0
     paste_events: int = 0
+    copy_attempts: int = 0
     duration_sec: int = 0
 
 
@@ -790,7 +791,7 @@ async def save_submission(user, course_id, module_id, quiz, body: SubmitIn, bg: 
            "questions": quiz["questions"], "answers": body.answers, "pass_score": quiz.get("pass_score", 75),
            "feedback": "",
            "behavior": {"tab_switches": body.tab_switches, "paste_events": body.paste_events,
-                        "duration_sec": body.duration_sec},
+                        "copy_attempts": body.copy_attempts, "duration_sec": body.duration_sec},
            "ai_status": "pendiente", "ai_analysis": None, "created_at": now_iso()}
     finalize_fields(sub, auto_grade(quiz, body.answers))
     await db.submissions.insert_one(sub)

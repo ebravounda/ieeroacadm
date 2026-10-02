@@ -94,6 +94,7 @@ h1, h2, h3, h4, .font-heading {
 @media print {
     body * { visibility: hidden; }
     #diploma-print, #diploma-print * { visibility: visible; }
+    .exam-protected, .exam-protected * { visibility: hidden !important; }
     #diploma-print { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none !important; }
     @page { size: landscape; margin: 0; }
 }

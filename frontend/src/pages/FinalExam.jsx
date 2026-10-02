@@ -28,7 +28,7 @@ export default function FinalExam() {
           {result?.diploma_code && <Button asChild variant="secondary"><Link to={`/diploma/${result.diploma_code}`} data-testid="final-view-diploma"><Award size={16} className="mr-2" /> Ver mi diploma</Link></Button>}
         </ExamResult>
       ) : exam.questions.length ? (
-        <ExamRunner quiz={exam} submitUrl={`/courses/${id}/final-exam/submit`} onResult={setResult} />
+        <ExamRunner protect quiz={exam} submitUrl={`/courses/${id}/final-exam/submit`} onResult={setResult} />
       ) : <p>El curso aún no tiene evaluación final configurada.</p>}
     </div>
   );
