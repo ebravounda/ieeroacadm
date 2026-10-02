@@ -16,7 +16,9 @@ from pydantic import BaseModel, EmailStr, Field
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
                   get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token,
-                  class_reminder_html, inactivity_email_html, weekly_report_html)
+                  class_reminder_html, inactivity_email_html, weekly_report_html, cert_request_email_html,
+                  cert_approved_email_html)
+from certificate import render_certificate, template_to_png, DEFAULT_TEMPLATE
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -146,7 +148,14 @@ class SettingsIn(BaseModel):
     vicerrector_name: Optional[str] = None
     rector_signature: Optional[str] = None
     vicerrector_signature: Optional[str] = None
+    directora_name: Optional[str] = None
+    directora_signature: Optional[str] = None
+    cert_template: Optional[dict] = None
+    cert_layout: Optional[dict] = None
 
+
+class RejectIn(BaseModel):
+    reason: str = ""
 
 # ---------------- Helpers ----------------
 def public_user(u):
@@ -275,23 +284,43 @@ async def run_ai_analysis(sub_id):
         await db.submissions.update_one({"id": sub_id}, {"$set": {"ai_status": "error"}})
 
 
+CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def approval_code():
+    pick = lambda: "".join(secrets.choice(CODE_CHARS) for _ in range(4))  # noqa: E731
+    return f"IBA-{pick()}-{pick()}"
+
+
+async def notify_admins_certificate(d):
+    async for a in db.users.find({"role": "admin", "active": True}, {"_id": 0, "email": 1, "nombre": 1}):
+        try:
+            await send_email(to=a["email"], subject=f"Solicitud de aprobación de certificado – {d['student_name']}",
+                             html=cert_request_email_html(a["nombre"], d["student_name"], d["course_title"],
+                                                          d.get("nota_final")))
+        except Exception as ex:
+            logger.error(f"Certificate request email failed: {ex}")
+
+
 async def issue_diploma(user, course, nota=None):
     existing = await db.diplomas.find_one({"user_id": user["id"], "course_id": course["id"]}, {"_id": 0})
     if existing:
         return existing
-    doc = {"id": new_id(), "code": secrets.token_hex(6).upper(), "user_id": user["id"], "course_id": course["id"],
+    doc = {"id": new_id(), "code": approval_code(), "user_id": user["id"], "course_id": course["id"],
            "student_name": f"{user['nombre']} {user['apellidos']}", "rut": user.get("rut", ""),
            "course_title": course["title"], "hours": course.get("hours", 0), "nota_final": nota,
-           "issued_at": now_iso()}
+           "status": "pendiente", "issued_at": now_iso()}
     await db.diplomas.insert_one(doc)
     doc.pop("_id", None)
+    asyncio.create_task(notify_admins_certificate(doc))
     return doc
 
 
 async def get_settings():
-    s = await db.settings.find_one({"id": "global"}, {"_id": 0})
-    return s or {"id": "global", "otec_name": EMAIL_FROM_NAME, "rector_name": "", "vicerrector_name": "",
-                 "rector_signature": "", "vicerrector_signature": ""}
+    s = await db.settings.find_one({"id": "global"}, {"_id": 0}) or {}
+    return {"id": "global", "otec_name": EMAIL_FROM_NAME, "rector_name": "", "vicerrector_name": "",
+            "rector_signature": "", "vicerrector_signature": "", "directora_name": "", "directora_signature": "",
+            "cert_template": {}, "cert_layout": {}, **s}
 
 
 # ---------------- Auth ----------------
@@ -1208,7 +1237,7 @@ async def read_settings(_=Depends(get_current_user)):
 @api.put("/settings")
 async def write_settings(body: SettingsIn, _=Depends(admin_only)):
     upd = {k: v for k, v in body.model_dump().items() if v is not None}
-    for k in ("rector_signature", "vicerrector_signature"):
+    for k in ("rector_signature", "vicerrector_signature", "directora_signature"):
         if upd.get(k):
             if not upd[k].startswith("data:image/png;base64,"):
                 raise HTTPException(400, "La firma debe ser una imagen PNG")
@@ -1220,12 +1249,130 @@ async def write_settings(body: SettingsIn, _=Depends(admin_only)):
 
 @api.get("/my/diplomas")
 async def my_diplomas(user=Depends(get_current_user)):
-    return await db.diplomas.find({"user_id": user["id"]}, {"_id": 0}).sort("issued_at", -1).to_list(500)
+    return await db.diplomas.find({"user_id": user["id"]}, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(500)
 
 
 @api.get("/diplomas")
 async def all_diplomas(_=Depends(staff_only)):
-    return await db.diplomas.find({}, {"_id": 0}).sort("issued_at", -1).to_list(5000)
+    return await db.diplomas.find({}, {"_id": 0, "pdf_path": 0}).sort("issued_at", -1).to_list(5000)
+
+
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre"]
+
+
+async def build_certificate_pdf(d, s, verify_url):
+    tpl = s.get("cert_template") or {}
+    if tpl.get("file_id"):
+        rec = await db.files.find_one({"id": tpl["file_id"]}, {"_id": 0})
+        raw, ctype = await asyncio.to_thread(get_object, rec["storage_path"])
+        png = await asyncio.to_thread(template_to_png, raw, rec["content_type"])
+    else:
+        png = DEFAULT_TEMPLATE.read_bytes()
+    t = datetime.fromisoformat(d.get("approved_at") or now_iso()).astimezone(ZoneInfo("America/Santiago"))
+    nota = d.get("nota_final")
+    data = {"student_name": d["student_name"], "rut": d.get("rut", ""), "course_title": d["course_title"],
+            "hours": d.get("hours", 0), "nota": f"{nota:.1f}".replace(".", ",") if nota else "",
+            "date_text": f"Santiago, {t.day} de {MESES[t.month - 1]} de {t.year}", "code": d["code"],
+            "verify_url": verify_url}
+    sigs = [(s.get("rector_signature"), s.get("rector_name"), "Rector"),
+            (s.get("vicerrector_signature"), s.get("vicerrector_name"), "Vicerrectora"),
+            (s.get("directora_signature"), s.get("directora_name"), "Directora Académica")]
+    return await asyncio.to_thread(render_certificate, png, data, s.get("cert_layout") or {}, sigs)
+
+
+def app_base(request: Request):
+    return f"https://{request.headers.get('x-forwarded-host') or request.headers.get('host')}"
+
+
+MOTIVATION = [
+    "El aprendizaje es el único tesoro que te acompañará a todas partes.",
+    "Cada meta alcanzada es el punto de partida de un nuevo desafío. ¡Sigue creciendo!",
+    "El éxito es la suma de pequeños esfuerzos repetidos día tras día.",
+    "Invertir en conocimiento siempre paga el mejor interés.",
+    "Hoy demostraste que con constancia todo es posible. ¡El próximo paso es tuyo!",
+]
+
+
+@api.post("/diplomas/{diploma_id}/approve")
+async def approve_diploma(diploma_id: str, request: Request, bg: BackgroundTasks, admin=Depends(admin_only)):
+    d = await db.diplomas.find_one({"id": diploma_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Certificado no encontrado")
+    if d.get("status") == "aprobado":
+        raise HTTPException(400, "Este certificado ya fue aprobado")
+    base = app_base(request)
+    d["approved_at"] = now_iso()
+    s = await get_settings()
+    try:
+        pdf = await build_certificate_pdf(d, s, f"{base}/verificar/{d['code']}")
+    except Exception as ex:
+        logger.error(f"Certificate render failed: {ex}")
+        raise HTTPException(500, "No se pudo generar el PDF. Revisa la plantilla en Configuración.")
+    res = await asyncio.to_thread(put_object, f"{APP_NAME}/certificados/{d['code']}.pdf", pdf, "application/pdf")
+    upd = {"status": "aprobado", "approved_at": d["approved_at"], "approved_by": admin["id"],
+           "pdf_path": res["path"], "verify_url": f"{base}/verificar/{d['code']}", "reject_reason": ""}
+    await db.diplomas.update_one({"id": diploma_id}, {"$set": upd})
+    bg.add_task(notify_student_certificate, {**d, **upd})
+    return {**d, **upd}
+
+
+async def notify_student_certificate(d):
+    u = await db.users.find_one({"id": d["user_id"]}, {"_id": 0})
+    try:
+        await send_email(to=u["email"], subject=f"¡Felicidades! Completaste {d['course_title']} – {EMAIL_FROM_NAME}",
+                         html=cert_approved_email_html(u["nombre"], d["course_title"], d.get("nota_final"), d["code"],
+                                                       d["verify_url"], secrets.choice(MOTIVATION)))
+    except Exception as ex:
+        logger.error(f"Certificate email failed: {ex}")
+
+
+@api.post("/diplomas/{diploma_id}/reject")
+async def reject_diploma(diploma_id: str, body: RejectIn, _=Depends(admin_only)):
+    d = await db.diplomas.find_one({"id": diploma_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Certificado no encontrado")
+    if d.get("status") == "aprobado":
+        raise HTTPException(400, "No se puede rechazar un certificado ya emitido")
+    await db.diplomas.update_one({"id": diploma_id}, {"$set": {"status": "rechazado", "reject_reason": body.reason}})
+    return {"ok": True}
+
+
+async def certificate_pdf_response(d):
+    if d.get("status") != "aprobado" or not d.get("pdf_path"):
+        raise HTTPException(404, "Certificado aún no emitido")
+    data, _ct = await asyncio.to_thread(get_object, d["pdf_path"])
+    return Response(content=data, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="certificado_{d["code"]}.pdf"'})
+
+
+@api.get("/diplomas/{code}/pdf")
+async def diploma_pdf(code: str, user=Depends(get_current_user)):
+    d = await db.diplomas.find_one({"code": code.upper()}, {"_id": 0})
+    if not d or (user["role"] not in STAFF and d["user_id"] != user["id"]):
+        raise HTTPException(404, "Certificado no encontrado")
+    return await certificate_pdf_response(d)
+
+
+@api.get("/public/diplomas/{code}/pdf")
+async def public_diploma_pdf(code: str):
+    d = await db.diplomas.find_one({"code": code.upper()}, {"_id": 0})
+    if not d:
+        raise HTTPException(404, "Certificado no encontrado")
+    return await certificate_pdf_response(d)
+
+
+@api.post("/settings/certificate-preview")
+async def certificate_preview(request: Request, _=Depends(admin_only)):
+    s = await get_settings()
+    sample = {"student_name": "María José González Pérez", "rut": "12.345.678-9", "hours": 40, "nota_final": 6.2,
+              "course_title": "Nombre del curso de ejemplo para la vista previa", "code": "IBA-XXXX-XXXX"}
+    try:
+        pdf = await build_certificate_pdf(sample, s, f"{app_base(request)}/verificar/IBA-XXXX-XXXX")
+    except Exception as ex:
+        logger.error(f"Certificate preview failed: {ex}")
+        raise HTTPException(400, "No se pudo usar la plantilla. Sube un PNG, JPG o PDF válido.")
+    return Response(content=pdf, media_type="application/pdf")
 
 
 async def diploma_with_settings(code):
@@ -1241,14 +1388,17 @@ async def get_diploma(code: str, user=Depends(get_current_user)):
     d, s = await diploma_with_settings(code)
     if user["role"] not in STAFF and d["user_id"] != user["id"]:
         raise HTTPException(403, "Sin permisos")
-    return {**d, "settings": s}
+    d.pop("pdf_path", None)
+    return {**d, "settings": {"otec_name": s.get("otec_name")}}
 
 
 @api.get("/public/verify/{code}")
 async def verify_diploma(code: str):
     d, s = await diploma_with_settings(code)
+    if d.get("status") != "aprobado":
+        raise HTTPException(404, "Diploma no encontrado")
     return {"valid": True, "code": d["code"], "student_name": d["student_name"], "rut": d.get("rut", ""),
-            "nota_final": d.get("nota_final"),
+            "nota_final": d.get("nota_final"), "approved_at": d.get("approved_at"),
             "course_title": d["course_title"], "hours": d.get("hours", 0), "issued_at": d["issued_at"],
             "otec_name": s.get("otec_name")}
 

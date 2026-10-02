@@ -1,55 +1,59 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
-import { QRCodeSVG } from "qrcode.react";
-import { Printer } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { Download, Hourglass, XCircle } from "lucide-react";
 import { api, errMsg, fmtDay, fmtNota } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-
-function Signature({ img, name, role }) {
-  return (
-    <div className="text-center w-48 sm:w-56">
-      <div className="h-16 flex items-end justify-center">{img && <img src={img} alt={role} className="max-h-16 object-contain" />}</div>
-      <div className="border-t border-slate-400 mt-1 pt-1">
-        <p className="text-sm font-semibold">{name || "—"}</p>
-        <p className="text-[11px] uppercase tracking-wider text-slate-500">{role}</p>
-      </div>
-    </div>
-  );
-}
 
 export default function DiplomaView() {
   const { code } = useParams();
   const [d, setD] = useState(null);
+  const [pdfUrl, setPdfUrl] = useState(null);
   const [error, setError] = useState(null);
-  useEffect(() => { api.get(`/diplomas/${code}`).then((r) => setD(r.data)).catch((e) => setError(errMsg(e))); }, [code]);
+
+  useEffect(() => {
+    let url;
+    api.get(`/diplomas/${code}`).then(async (r) => {
+      setD(r.data);
+      if ((r.data.status || "aprobado") === "aprobado") {
+        const pdf = await api.get(`/diplomas/${code}/pdf`, { responseType: "blob" });
+        url = URL.createObjectURL(new Blob([pdf.data], { type: "application/pdf" }));
+        setPdfUrl(url);
+      }
+    }).catch((e) => setError(errMsg(e)));
+    return () => url && URL.revokeObjectURL(url);
+  }, [code]);
+
   if (error) return <p data-testid="diploma-error">{error}</p>;
   if (!d) return <p className="text-slate-500">Cargando…</p>;
-  const s = d.settings;
-  const verifyUrl = `${window.location.origin}/verificar/${d.code}`;
+  const status = d.status || "aprobado";
+
+  if (status !== "aprobado") {
+    const pending = status === "pendiente";
+    return (
+      <div className="max-w-xl bg-white border rounded-xl p-8" data-testid="diploma-pending">
+        {pending ? <Hourglass className="text-amber-600" /> : <XCircle className="text-rose-600" />}
+        <h2 className="text-2xl font-bold mt-3">{pending ? "Certificado en aprobación" : "Solicitud rechazada"}</h2>
+        <p className="text-slate-600 mt-2">
+          {pending ? <>¡Felicidades por completar <b>{d.course_title}</b>! Tu certificado está siendo revisado por la institución. Te avisaremos por correo cuando sea emitido.</>
+            : <>La solicitud de certificado para <b>{d.course_title}</b> fue rechazada{d.reject_reason ? `: ${d.reject_reason}` : "."} Contacta a la institución.</>}
+        </p>
+        <p className="text-sm text-slate-500 mt-4">Nota final: <b>{fmtNota(d.nota_final)}</b> · Solicitado el {fmtDay(d.issued_at)}</p>
+        <Link to="/diplomas" className="text-teal-700 text-sm mt-4 inline-block">Volver a certificados</Link>
+      </div>
+    );
+  }
 
   return (
     <div>
-      <div className="flex justify-end mb-4"><Button onClick={() => window.print()} data-testid="diploma-print-button"><Printer size={16} className="mr-2" /> Imprimir / Guardar PDF</Button></div>
-      <div id="diploma-print" className="diploma-paper relative aspect-[1.414/1] w-full max-w-5xl mx-auto shadow-xl border-[10px] border-double border-teal-800/70 p-6 sm:p-12 flex flex-col text-slate-900" data-testid="diploma-document">
-        <div className="text-center">
-          <p className="text-xs sm:text-sm uppercase tracking-[0.35em] text-teal-800 font-semibold" data-testid="diploma-otec-name">{s.otec_name}</p>
-          <h1 className="mt-3 sm:mt-6 text-3xl sm:text-5xl font-extrabold tracking-tight" style={{ fontFamily: "Plus Jakarta Sans" }}>Diploma</h1>
-          <p className="mt-3 sm:mt-6 text-sm text-slate-600">Se otorga el presente diploma a</p>
-          <p className="mt-2 text-2xl sm:text-4xl font-heading font-bold text-teal-900" data-testid="diploma-student-name">{d.student_name}</p>
-          {d.rut && <p className="text-sm text-slate-600 mt-1">RUT {d.rut}</p>}
-          <p className="mt-3 sm:mt-5 text-sm text-slate-600">por haber aprobado satisfactoriamente el curso</p>
-          <p className="mt-1 text-lg sm:text-2xl font-semibold" data-testid="diploma-course-title">{d.course_title}</p>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">{d.nota_final ? <span data-testid="diploma-nota">Nota final {fmtNota(d.nota_final)} · </span> : ""}{d.hours ? `${d.hours} horas cronológicas · ` : ""}Emitido el {fmtDay(d.issued_at)}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="diploma-course-title">{d.course_title}</h1>
+          <p className="text-sm text-slate-500" data-testid="diploma-student-name">{d.student_name} · Código de aprobación <span className="font-mono font-semibold" data-testid="diploma-code">{d.code}</span></p>
         </div>
-        <div className="mt-auto flex items-end justify-between gap-4">
-          <Signature img={s.rector_signature} name={s.rector_name} role="Rector(a)" />
-          <div className="text-center" data-testid="diploma-qr">
-            <QRCodeSVG value={verifyUrl} size={92} level="M" bgColor="transparent" />
-            <p className="text-[10px] font-mono mt-1">Código: {d.code}</p>
-          </div>
-          <Signature img={s.vicerrector_signature} name={s.vicerrector_name} role="Vicerrector(a)" />
-        </div>
+        {pdfUrl && <Button asChild><a href={pdfUrl} download={`certificado_${d.code}.pdf`} data-testid="diploma-download-button"><Download size={16} className="mr-2" /> Descargar PDF</a></Button>}
       </div>
+      {pdfUrl ? <iframe title="Certificado" src={pdfUrl} className="w-full h-[75vh] rounded-xl border bg-white" data-testid="diploma-document" />
+        : <p className="text-slate-500">Cargando certificado…</p>}
     </div>
   );
 }

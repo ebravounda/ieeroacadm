@@ -1,29 +1,99 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Award } from "lucide-react";
-import { api, fmtDay } from "@/lib/api";
+import { toast } from "sonner";
+import { Award, Check, X, Hourglass } from "lucide-react";
+import { api, errMsg, fmtDay, fmtNota } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, Empty } from "@/components/Common";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export const STATUS = {
+  pendiente: { label: "En aprobación", cls: "bg-amber-100 text-amber-800" },
+  aprobado: { label: "Emitido", cls: "bg-emerald-100 text-emerald-800" },
+  rechazado: { label: "Rechazado", cls: "bg-rose-100 text-rose-700" },
+};
+const statusOf = (d) => d.status || "aprobado";
+
+function Badge({ d }) {
+  const s = STATUS[statusOf(d)];
+  return <span className={`text-xs rounded-full px-2 py-0.5 font-semibold ${s.cls}`} data-testid={`diploma-status-${d.code}`}>{s.label}</span>;
+}
+
+function Card({ d }) {
+  return (
+    <Link to={`/diploma/${d.code}`} className="diploma-paper border rounded-xl p-6 hover:shadow-md transition-shadow block" data-testid={`diploma-card-${d.code}`}>
+      <div className="flex items-center justify-between"><Award className="text-amber-600" /><Badge d={d} /></div>
+      <p className="font-semibold mt-3">{d.course_title}</p>
+      <p className="text-sm text-slate-600">{d.student_name}</p>
+      <p className="text-xs text-slate-500 mt-3 font-mono">{statusOf(d) === "aprobado" ? `${d.code} · ${fmtDay(d.approved_at || d.issued_at)}` : `Solicitado ${fmtDay(d.issued_at)}`}</p>
+    </Link>
+  );
+}
+
+function PendingRow({ d, canApprove, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const approve = async () => {
+    setBusy(true);
+    try { await api.post(`/diplomas/${d.id}/approve`); toast.success("Certificado emitido y enviado al alumno"); onDone(); }
+    catch (e) { toast.error(errMsg(e)); } finally { setBusy(false); }
+  };
+  const reject = () => {
+    const reason = window.prompt("Motivo del rechazo (opcional)");
+    if (reason === null) return;
+    api.post(`/diplomas/${d.id}/reject`, { reason }).then(() => { toast.success("Solicitud rechazada"); onDone(); }).catch((e) => toast.error(errMsg(e)));
+  };
+  return (
+    <div className="p-4 flex flex-wrap items-center gap-4" data-testid={`certificate-request-${d.id}`}>
+      <Hourglass size={18} className="text-amber-600" />
+      <div className="flex-1 min-w-[200px]">
+        <p className="font-medium">{d.student_name} {d.rut && <span className="text-xs text-slate-500">· {d.rut}</span>}</p>
+        <p className="text-xs text-slate-500">{d.course_title} · nota final {fmtNota(d.nota_final)} · solicitado {fmtDay(d.issued_at)}</p>
+        {d.status === "rechazado" && <p className="text-xs text-rose-600">Rechazado{d.reject_reason ? `: ${d.reject_reason}` : ""}</p>}
+      </div>
+      {canApprove ? (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={approve} disabled={busy} data-testid={`certificate-approve-${d.id}`}><Check size={14} className="mr-1" /> {busy ? "Emitiendo…" : "Aprobar y emitir"}</Button>
+          {d.status !== "rechazado" && <Button size="sm" variant="outline" onClick={reject} data-testid={`certificate-reject-${d.id}`}><X size={14} className="mr-1" /> Rechazar</Button>}
+        </div>
+      ) : <span className="text-xs text-slate-500">Solo el administrador aprueba</span>}
+    </div>
+  );
+}
+
+function StaffView({ rows, canApprove, reload }) {
+  const pending = rows.filter((d) => statusOf(d) !== "aprobado");
+  const issued = rows.filter((d) => statusOf(d) === "aprobado");
+  return (
+    <Tabs defaultValue="pending">
+      <TabsList className="mb-6">
+        <TabsTrigger value="pending" data-testid="diplomas-tab-pending">Solicitudes ({pending.length})</TabsTrigger>
+        <TabsTrigger value="issued" data-testid="diplomas-tab-issued">Emitidos ({issued.length})</TabsTrigger>
+      </TabsList>
+      <TabsContent value="pending">
+        {pending.length === 0 ? <Empty text="No hay solicitudes de certificado pendientes." testId="certificate-requests-empty" />
+          : <div className="bg-white border rounded-xl divide-y">{pending.map((d) => <PendingRow key={d.id} d={d} canApprove={canApprove} onDone={reload} />)}</div>}
+      </TabsContent>
+      <TabsContent value="issued">
+        {issued.length === 0 ? <Empty text="Aún no hay certificados emitidos." testId="diplomas-empty" />
+          : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{issued.map((d) => <Card key={d.id} d={d} />)}</div>}
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 export default function Diplomas() {
   const { user } = useAuth();
+  const staff = isStaff(user);
   const [rows, setRows] = useState([]);
-  useEffect(() => { api.get(isStaff(user) ? "/diplomas" : "/my/diplomas").then((r) => setRows(r.data)); }, [user]);
+  const load = () => api.get(staff ? "/diplomas" : "/my/diplomas").then((r) => setRows(r.data));
+  useEffect(() => { load(); }, [user]); // eslint-disable-line
   return (
     <>
-      <PageHeader eyebrow="Certificación" title="Diplomas" subtitle="Cada diploma incluye un código QR que permite verificar su autenticidad públicamente." />
-      {rows.length === 0 ? <Empty text="Aún no hay diplomas emitidos." testId="diplomas-empty" /> : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {rows.map((d) => (
-            <Link key={d.id} to={`/diploma/${d.code}`} className="diploma-paper border rounded-xl p-6 hover:shadow-md transition-shadow" data-testid={`diploma-card-${d.code}`}>
-              <Award className="text-amber-600" />
-              <p className="font-semibold mt-3">{d.course_title}</p>
-              <p className="text-sm text-slate-600">{d.student_name}</p>
-              <p className="text-xs text-slate-500 mt-3 font-mono">{d.code} · {fmtDay(d.issued_at)}</p>
-            </Link>
-          ))}
-        </div>
-      )}
+      <PageHeader eyebrow="Certificación" title="Certificados" subtitle={staff ? "Aprueba las solicitudes de certificado de los alumnos que finalizaron su curso. Al aprobar, se genera el PDF y se envía al alumno por correo." : "Al finalizar un curso, tu certificado pasa a aprobación. Cuando se emite, lo recibes por correo y puedes descargarlo aquí."} />
+      {staff ? <StaffView rows={rows} canApprove={user.role === "admin"} reload={load} />
+        : rows.length === 0 ? <Empty text="Aún no tienes certificados." testId="diplomas-empty" />
+        : <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">{rows.map((d) => <Card key={d.id} d={d} />)}</div>}
     </>
   );
 }

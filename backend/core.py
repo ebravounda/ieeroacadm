@@ -221,6 +221,37 @@ def inactivity_email_html(name, days, course, progress, next_step) -> str:
     )
 
 
+def cert_request_email_html(admin_name, student, course, nota) -> str:
+    nota_txt = f" con nota final <b>{nota:.1f}</b>".replace(".", ",") if nota else ""
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'<p>Hola {escape(admin_name)}, hay una nueva <b>solicitud de aprobación de certificado</b>.</p>'
+        f'<p style="font-size:16px"><b>{escape(student)}</b> finalizó el curso <b>{escape(course)}</b>{nota_txt}.</p>'
+        '<p>Ingresa a la plataforma, sección <b>Diplomas</b>, para revisar y aprobar la emisión del certificado.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado automáticamente por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
+def cert_approved_email_html(name, course, nota, code, verify_url, phrase) -> str:
+    nota_txt = f"<p>Tu nota final: <b>{nota:.1f}</b></p>".replace(".", ",", 1) if nota else ""
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'<p style="font-size:22px;font-weight:bold;color:#0d9488;margin:8px 0">¡Felicidades, {escape(name)}!</p>'
+        f'<p>Has completado tu curso <b>{escape(course)}</b> exitosamente. Tu certificado fue aprobado y ya está disponible.</p>'
+        f'{nota_txt}'
+        f'<p style="background:#f0fdfa;border-left:4px solid #0d9488;padding:12px;font-style:italic">“{escape(phrase)}”</p>'
+        f'<p>Código de aprobación: <b style="font-family:monospace">{escape(code)}</b></p>'
+        f'<p><a href="{escape(verify_url)}" style="display:inline-block;background:#0d9488;color:#fff;padding:12px 20px;'
+        'border-radius:8px;text-decoration:none;font-weight:bold">Descargar mi certificado (PDF)</a></p>'
+        '<p style="font-size:13px;color:#475569">También puedes descargarlo cuando quieras en la sección Diplomas de la plataforma.</p>'
+        f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
 def weekly_report_html(reports, date) -> str:
     def n(v):
         return "—" if v is None else f"{v:.1f}".replace(".", ",")
