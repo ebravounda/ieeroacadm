@@ -1,0 +1,39 @@
+{
+  "summary": "Validated 'Módulo 0 - Bienvenida al curso' feature end-to-end. Backend pytest test_welcome_module.py created with 7 tests covering: (1) POST /api/courses auto-creates welcome module (order=0, welcome=true, title 'Bienvenida al curso', section 'Bienvenida al alumno/a', video material url '/bienvenida.mp4'); (2) /bienvenida.mp4 served 200 video/mp4 (1.5 MB); (3) POST /courses/{id}/modules continues numbering (order=1, 2, ...); (4) POST /courses/{id}/import-modules continues numbering (orders [0,1,2] after import of 2 modules); (5) DELETE /modules/{welcome_id} returns 400 'El Módulo 0 de bienvenida no se puede eliminar'; (6) startup ensure_welcome backfills missing welcome module on existing courses AND adds the welcome module to completed_modules for enrollments with non-empty completed_modules or final_passed=true (verified by inserting course directly in Mongo without welcome, restarting backend via supervisorctl, then checking state); fresh enrollments (empty completed_modules, final_passed=false) are NOT auto-marked; (7) student flow: Module 1 returns 403 locked until welcome module video is marked task-complete and welcome module /complete endpoint called, then Module 1 returns 200. All 7 tests pass. Also updated test_quiz_draw.py (added complete_welcome helper into make_student) and re-ran: all 10 iteration_14 quiz_draw tests pass. Playwright UI test confirmed: /curso/{id} student view shows '00' and '01' padded numbering with 'Bienvenida al curso' as module 0; /modulo/{welcome_id} renders video with data-testid material-video-{id} as <video> element with src='/bienvenida.mp4'; task-complete-{mat_id} button marks it done; module-mark-complete-button finalizes welcome module; after that, /modulo/{m1_id} is accessible (no module-locked-message). Admin editor /cursos/{id}/editar shows editor-module-0 with '0' badge and 'Bienvenida al curso', editor-module-1 with '1' badge and text containing 'requiere módulo 0'.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_welcome_module.py",
+    "/app/backend/tests/test_quiz_draw.py",
+    "/app/test_reports/pytest/iteration15.xml",
+    "/app/test_reports/pytest/iteration15_quiz_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "welcome_module() correctly uses WELCOME_SECTION constant 'bienvenida' as section_id so the welcome video renders in that section — good.",
+    "ensure_welcome() uses $addToSet on completed_modules filtered by {$or: [completed_modules.0 exists, final_passed:true]} — correctly backfills only in-progress / completed students, not brand-new enrollments. Verified with 3 mock enrollments.",
+    "next_order() uses sort order:-1 and returns last.order+1; welcome's order=0 means first POSTed module gets 1 — matches spec.",
+    "server.delete_module blocks welcome deletion with 400 before delete_one — good.",
+    "importer continues numbering: `count = await next_order(course_id) - 1` and then `order = count + i + 1`. With welcome present (max order=0), first imported module gets order 1. Verified.",
+    "ModuleView.jsx eyebrow uses `Módulo ${m.order}` so welcome shows 'Módulo 0' (uppercased by PageHeader styling). MaterialBody renders /bienvenida.mp4 via <video> because url matches /\\.(mp4|webm|mov)$/i. data-testid material-video-{id} present.",
+    "CourseView.jsx numbering uses String(m.order ?? i+1).padStart(2,'0') -> '00','01',... Correct per spec.",
+    "CourseEditor.jsx shows i for welcome (because course.modules[0].welcome is true) and i for others shift by -1 in 'requiere módulo N' label. Verified '1' for first real module and 'requiere módulo 0' label is correct.",
+    "Minor: ensure_welcome runs sequentially per course at startup; for large course catalogs this is fine but could be awaited concurrently. Not a problem now.",
+    "Minor: there is a race if a brand-new enrollment is created the moment ensure_welcome runs (new enrollment gets completed_modules=[] so welcome is NOT auto-added which is actually the desired behavior)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_welcome_module.py",
+    "/app/backend/tests/test_quiz_draw.py"
+  ],
+  "success_rate": {"backend": "100% (7/7 welcome + 10/10 quiz_draw regression)", "frontend": "100%"},
+  "test_credentials": "Admin info@iberoacademy.cl (JWT minted via JWT_SECRET env). Students delivered+TEST_*@resend.dev.",
+  "seed_data_creation": "Created TEST_Welcome_* courses, TEST_Backfill course (inserted directly in Mongo without welcome module to validate startup backfill), TEST_UI_Welcome course for Playwright run, plus TEST_W_* / TEST_UIW_ students. All deleted post-test. Final count verified: 0 TEST_* courses remaining in DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "test_welcome_module.py backfill test performs sudo supervisorctl restart backend; when running in parallel with xdist this can transiently fail other workers with 502. Run with `pytest -p no:xdist -o addopts=''` for stability. The pytest.ini default addopts enables xdist. test_quiz_draw.make_student now auto-completes welcome module (because every new course has Módulo 0). CourseView padding uses .padStart(2,'0') for m.order so order 10+ display as '10'. ModuleView eyebrow text 'Módulo 0' is rendered uppercase via CSS (PageHeader).",
+  "rca of the issue": "No issues; feature implementation matches specification. Only required test maintenance: update test_quiz_draw.make_student to call complete_welcome(course_id, token) so student can access the real test module (Module 0 blocks Module 1 by design)."
+}

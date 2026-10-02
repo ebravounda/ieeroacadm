@@ -97,6 +97,17 @@ def course_with_bank(admin_token):
         mongo.users.delete_one({"_id": email["_id"]})
 
 
+def complete_welcome(course_id, token):
+    """Auto-complete the Módulo 0 (Bienvenida) so student can access real modules."""
+    w = mongo.modules.find_one({"course_id": course_id, "welcome": True})
+    if not w:
+        return
+    wid = w["id"]
+    for mat in w.get("materials", []):
+        requests.post(f"{API}/modules/{wid}/tasks/{mat['id']}/complete", headers=h(token))
+    requests.post(f"{API}/modules/{wid}/complete", headers=h(token))
+
+
 def make_student(admin_token, label, course_id):
     email = f"delivered+TEST_QD_{label}_{int(time.time()*1000)%1000000}@resend.dev"
     r = requests.post(f"{API}/users", headers=h(admin_token), json={
@@ -104,7 +115,9 @@ def make_student(admin_token, label, course_id):
         "role": "estudiante", "course_id": course_id})
     assert r.status_code == 200, r.text
     u = r.json()
-    return u, mint(u["id"])
+    tok = mint(u["id"])
+    complete_welcome(course_id, tok)
+    return u, tok
 
 
 # ---------- Tests ----------
