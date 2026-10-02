@@ -18,6 +18,16 @@ import Settings from "@/pages/Settings";
 import Diplomas from "@/pages/Diplomas";
 import MyProgress from "@/pages/MyProgress";
 import AttendanceCertificate, { VerifyAttendance } from "@/pages/AttendanceCertificate";
+import Landing from "@/pages/Landing";
+import PaymentResult from "@/pages/PaymentResult";
+import Payments from "@/pages/Payments";
+import WebsiteAdmin from "@/pages/WebsiteAdmin";
+
+function Home() {
+  const { user } = useAuth();
+  if (user === null) return <div className="p-10 text-slate-500">Cargando…</div>;
+  return user ? <AppLayout><Dashboard /></AppLayout> : <Landing />;
+}
 import DiplomaView from "@/pages/DiplomaView";
 import VerifyDiploma from "@/pages/VerifyDiploma";
 
@@ -39,7 +49,10 @@ function App() {
           <Route path="/verificar/:code" element={<VerifyDiploma />} />
           <Route path="/verificar-asistencia/:code" element={<VerifyAttendance />} />
           <Route path="/certificado-asistencia/:code" element={<Protected><AttendanceCertificate /></Protected>} />
-          <Route path="/" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/" element={<Home />} />
+          <Route path="/pago/resultado" element={<PaymentResult />} />
+          <Route path="/pagos" element={<Protected staff><Payments /></Protected>} />
+          <Route path="/sitio-web" element={<Protected admin><WebsiteAdmin /></Protected>} />
           <Route path="/estudiantes" element={<Protected staff><Students /></Protected>} />
           <Route path="/cursos" element={<Protected staff><Courses /></Protected>} />
           <Route path="/cursos/:id/editar" element={<Protected staff><CourseEditor /></Protected>} />

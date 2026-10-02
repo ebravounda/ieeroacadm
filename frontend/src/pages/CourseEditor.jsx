@@ -138,7 +138,7 @@ export default function CourseEditor() {
         <TabsContent value="final"><FinalExamTab course={course} /></TabsContent>
         <TabsContent value="students"><EnrollmentsTab courseId={id} /></TabsContent>
         <TabsContent value="report"><CourseReport courseId={id} /></TabsContent>
-        <TabsContent value="info"><div className="bg-white border rounded-xl p-6 max-w-xl"><CourseForm initial={{ title: course.title, description: course.description, code: course.code, hours: course.hours, auto_enroll: course.auto_enroll, published: course.published }} onSave={saveInfo} /></div></TabsContent>
+        <TabsContent value="info"><div className="bg-white border rounded-xl p-6 max-w-xl"><CourseForm initial={{ title: course.title, description: course.description, code: course.code, hours: course.hours, auto_enroll: course.auto_enroll, published: course.published, price: course.price || 0, summary: course.summary || "", modality: course.modality || "", image_file_id: course.image_file_id || "", show_on_landing: !!course.show_on_landing }} onSave={saveInfo} /></div></TabsContent>
       </Tabs>
     </>
   );

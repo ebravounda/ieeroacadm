@@ -104,6 +104,11 @@ class CourseIn(BaseModel):
     hours: int = 0
     auto_enroll: bool = False
     published: bool = True
+    price: int = Field(default=0, ge=0)
+    summary: str = ""
+    modality: str = ""
+    image_file_id: str = ""
+    show_on_landing: bool = False
 
 
 class ModuleIn(BaseModel):
@@ -1495,6 +1500,9 @@ async def root():
     return {"message": "OTEC API"}
 
 
+from shop import router as shop_router  # noqa: E402
+
+api.include_router(shop_router)
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
