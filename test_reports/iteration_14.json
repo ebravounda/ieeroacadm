@@ -1,0 +1,34 @@
+{
+  "summary": "Validated randomized quiz draw (10 random questions per student) feature end-to-end. Backend pytest file test_quiz_draw.py created with 10 tests covering: PUT /modules & PUT /courses/{id}/final-exam persist draw_count; GET /modules/{id} returns exactly 10 shuffled questions (of a 15-question bank) stripped of correct/correct_multi (mc->single) ; same student receives the SAME draw on repeat GETs (persisted in quiz_draws); two different students receive different drawn question subsets/options; POST /modules/{id}/submit grades correctly against the student's drawn-and-shuffled options (answering the shuffled 'correct' index returns score=100, passed=true), submission documents include attempt=1,2,...; after failing, draw is deleted and a new GET returns a fresh random draw and the next submission is attempt=2; admin GET /submissions returns attempt field; final-exam flow: 403 before completing modules, 10 questions drawn without answers, failing returns course_reset=true, resets completed_modules/completed_tasks/module_results on enrollment, and subsequent GET /courses/{id}/final-exam returns 403; module without quiz still completable via /complete endpoint. All 10 tests pass (23.8s serially; 3.7s parallel). Frontend verified via Playwright: In admin course editor /cursos/{id}/editar the module edit dialog shows input `module-draw-count` with default value 10 and info text `module-bank-info` 'Banco: 15 preguntas · cada alumno recibe 10 al azar con alternativas mezcladas'. Evaluación final tab exposes `final-draw-count` and `final-bank-info`. On /evaluaciones (Submissions page) two generated submissions show badges `submission-attempt-{id}` with text 'Primer intento' (slate) and 'Segundo intento' (amber). Opening a submission reveals `choice-review` block with `review-question-i` and `review-result-i` ('Incorrecta'/'Correcta'); each option list highlights the Correcta option (green) and 'Respuesta del alumno' (rose), and the two attempts have options arranged in different orders (shuffle confirmed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_quiz_draw.py",
+    "/app/test_reports/pytest/iteration14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.get_draw uses $setOnInsert so concurrent GETs from the same student atomically pick a single draw — good.",
+    "shuffle_options correctly remaps q['correct'] to its new index AND q['correct_multi'] after permutation; the stored draw retains the mapped indices, so auto_grade in save_submission grades against the drawn (shuffled) answers via get_draw() called inside save_submission (consistent with what the student saw).",
+    "strip_answers converts type 'mc' → 'single' for the student view — ensures frontend radio rendering is consistent.",
+    "After failing final exam, apply_result deletes ALL quiz_draws for that course (correct — forces fresh randomization on retry) and resets completed_modules/completed_tasks/module_results. Submission is marked course_reset=true. Response from save_submission includes course_reset — FinalExam.jsx correctly shows `final-reset-message` and `final-restart-course`.",
+    "Admin review (Submissions page ChoiceReview) uses sub.questions (the student's drawn-and-shuffled set) with their correct indices, so admin sees exactly what the student saw plus the correct option highlighted — matches user requirement.",
+    "Quiz pydantic model enforces draw_count>=0 but server also falls back to len(qs) when draw_count==0 via `n = draw_count or len(qs)`. Harmless but worth noting: admin cannot set 'use entire bank' via 0 without the fallback — currently works implicitly.",
+    "Minor: FinalExam.jsx line 18 — `shown` falls back to last_submission only for en_revision or when final_passed. If the student previously failed (course_reset=true), there's no last_submission because enrollment reset wiped progress state but the submission remains in db; however since module completion is wiped, require_enrollment+modules completed check at /final-exam returns 403 and FinalExam shows `final-exam-locked` with the backend error — correct UX.",
+    "Submissions.jsx AttemptBadge: fallback to 'Intento {n}' for attempt>=3 is reasonable; keep in mind the spec only names first and second intents."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_quiz_draw.py"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100%"},
+  "test_credentials": "Admin: info@iberoacademy.cl (JWT minted via JWT_SECRET env for UI tests). Students created with delivered+TEST_QD_* emails.",
+  "seed_data_creation": "During pytest, created TEST_QuizDraw course + bank of 15 questions + module + final-exam of 12 questions, plus temporary students (TEST_QD_*). All deleted via fixture teardown and verified via mongosh. UI test created TEST_QD_UI course and submissions, cleaned up after test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Submissions page lives at /evaluaciones (NOT /entregas) per App.js route. Admin email info@iberoacademy.cl, user id a690fdb0-8bf8-46ae-8414-4cf96164ed96. JWT_SECRET in backend/.env. Module editor is opened by clicking the pencil icon (svg.lucide-pencil) in the module row (no dedicated data-testid for the edit button). Quiz model has `draw_count` default 10; frontend QuizBuilder exposes `{prefix}-draw-count` and `{prefix}-bank-info` with prefix='module' or 'final'. quiz_draws collection keyed by {user_id, course_id, module_id} (module_id=None for final).",
+  "rca of the issue": "No issues found; feature implementation matches specification."
+}
