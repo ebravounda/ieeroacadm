@@ -1098,7 +1098,8 @@ async def send_inactivity_alerts():
 async def accept_cron(request: Request) -> bool:
     """Validates cron auth; returns False for duplicate deliveries."""
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], os.environ["WEBHOOK_CRON_SECRET"]):
+    secret = (await core.get_cfg())["cron_secret"]
+    if not secret or not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], secret):
         raise HTTPException(401, "Unauthorized")
     run_id = request.headers.get("X-Webhook-Id")
     if not run_id:
@@ -1501,8 +1502,10 @@ async def root():
 
 
 from shop import router as shop_router  # noqa: E402
+from integrations import router as integrations_router  # noqa: E402
 
 api.include_router(shop_router)
+api.include_router(integrations_router)
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),

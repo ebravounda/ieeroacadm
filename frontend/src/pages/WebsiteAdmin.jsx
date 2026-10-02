@@ -39,15 +39,15 @@ function Slides() {
   );
 }
 
-function FlowSettings() {
+export function FlowSettings({ embedded, onSaved }) {
   const [s, setS] = useState(null);
   const [secret, setSecret] = useState("");
   useEffect(() => { api.get("/admin/payment-settings").then((r) => setS(r.data)); }, []);
   if (!s) return null;
-  const save = () => api.put("/admin/payment-settings", { flow_env: s.flow_env, flow_api_key: s.flow_api_key, flow_secret_key: secret || null }).then((r) => { setS(r.data); setSecret(""); toast.success("Credenciales de Flow guardadas"); }).catch((e) => toast.error(errMsg(e)));
+  const save = () => api.put("/admin/payment-settings", { flow_env: s.flow_env, flow_api_key: s.flow_api_key, flow_secret_key: secret || null }).then((r) => { setS(r.data); setSecret(""); toast.success("Credenciales de Flow guardadas"); onSaved?.(); }).catch((e) => toast.error(errMsg(e)));
   return (
-    <div className="bg-white border rounded-xl p-6 space-y-4" data-testid="website-flow-settings">
-      <div><p className="font-semibold">Pagos con Flow.cl</p><p className="text-xs text-slate-500">Obtén tus claves en Flow → Mi cuenta → Datos. Sandbox: sandbox.flow.cl · Producción: www.flow.cl</p></div>
+    <div className={embedded ? "space-y-4" : "bg-white border rounded-xl p-6 space-y-4"} data-testid="website-flow-settings">
+      <div>{!embedded && <p className="font-semibold">Pagos con Flow.cl</p>}<p className="text-xs text-slate-500">Obtén tus claves en Flow → Mi cuenta → Datos. Sandbox: sandbox.flow.cl · Producción: www.flow.cl</p></div>
       <div className="flex gap-2">{[["sandbox", "Sandbox (pruebas)"], ["production", "Producción (cobros reales)"]].map(([v, l]) => (
         <button key={v} onClick={() => setS({ ...s, flow_env: v })} className={`px-4 py-2 rounded-lg border text-sm ${s.flow_env === v ? "bg-teal-600 text-white border-teal-600" : "hover:bg-slate-50"}`} data-testid={`flow-env-${v}`}>{l}</button>))}</div>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -62,9 +62,8 @@ function FlowSettings() {
 export default function WebsiteAdmin() {
   return (
     <div className="max-w-4xl space-y-6">
-      <PageHeader eyebrow="Sitio web" title="Portada y pagos" subtitle="Administra el slider de iberoacademy.cl y las credenciales de Flow. Los cursos se publican desde Cursos y módulos → Datos del curso." />
+      <PageHeader eyebrow="Sitio web" title="Portada" subtitle="Administra el slider de iberoacademy.cl. Los cursos se publican desde Cursos y módulos → Datos del curso. Las claves de Flow y demás APIs están en Integraciones." />
       <Slides />
-      <FlowSettings />
     </div>
   );
 }

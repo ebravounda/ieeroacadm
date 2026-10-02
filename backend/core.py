@@ -176,19 +176,36 @@ def _assert_safe_email(subject: str, html: str) -> None:
                 raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
 
 
+async def get_cfg() -> dict:
+    s = await db.settings.find_one({"id": "integrations"}, {"_id": 0}) or {}
+    return {
+        "resend_api_key": s.get("resend_api_key") or RESEND_API_KEY,
+        "mail_from": s.get("mail_from") or os.environ.get("MAIL_FROM", ""),
+        "email_from_name": s.get("email_from_name") or EMAIL_FROM_NAME,
+        "openai_api_key": s.get("openai_api_key") or OPENAI_API_KEY,
+        "openai_model": s.get("openai_model") or os.environ.get("OPENAI_MODEL", ""),
+        "cron_secret": s.get("cron_secret") or os.environ.get("WEBHOOK_CRON_SECRET", ""),
+    }
+
+
 async def send_email(*, to: str, subject: str, html: str):
     _assert_safe_email(subject, html)
+    cfg = await get_cfg()
     try:
         async with httpx.AsyncClient(timeout=30) as c:
-            if RESEND_API_KEY:
-                resp = await c.post("https://api.resend.com/emails", headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                                    json={"from": f"{EMAIL_FROM_NAME} <{os.environ['MAIL_FROM']}>", "to": [to],
+            if cfg["resend_api_key"]:
+                if not cfg["mail_from"]:
+                    raise HTTPException(400, "Falta el correo remitente de Resend en Integraciones")
+                resp = await c.post("https://api.resend.com/emails", headers={"Authorization": f"Bearer {cfg['resend_api_key']}"},
+                                    json={"from": f"{cfg['email_from_name']} <{cfg['mail_from']}>", "to": [to],
                                           "subject": subject, "html": html})
             else:
                 resp = await c.post(f"{EMAIL_BASE_URL}/api/v1/email/send", headers={"X-Email-Key": EMAIL_KEY},
-                                    json={"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME})
+                                    json={"to": [to], "subject": subject, "html": html, "from_name": cfg["email_from_name"]})
         resp.raise_for_status()
         return resp.json().get("id")
+    except HTTPException:
+        raise
     except httpx.HTTPStatusError as e:
         logger.error(f"Email send failed: {e.response.status_code} {e.response.text}")
         raise HTTPException(502, "No se pudo enviar el correo")
@@ -409,11 +426,12 @@ async def analyze_ai_usage(questions: list, answers: dict, behavior: dict) -> di
         '"summary": "<explicación breve en español>", "answers": [{"question_id": "...", "percentage": <0-100>, '
         '"reasoning": "<motivo breve en español>"}]}'
     )
-    if OPENAI_API_KEY:
+    cfg = await get_cfg()
+    if cfg["openai_api_key"]:
         async with httpx.AsyncClient(timeout=120) as c:
             resp = await c.post("https://api.openai.com/v1/chat/completions",
-                                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                                json={"model": os.environ["OPENAI_MODEL"], "response_format": {"type": "json_object"},
+                                headers={"Authorization": f"Bearer {cfg['openai_api_key']}"},
+                                json={"model": cfg["openai_model"] or "gpt-5.2", "response_format": {"type": "json_object"},
                                       "messages": [{"role": "system", "content": AI_SYSTEM},
                                                    {"role": "user", "content": prompt}]})
         resp.raise_for_status()
