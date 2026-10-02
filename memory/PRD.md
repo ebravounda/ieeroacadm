@@ -46,6 +46,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Per-course time tracking: heartbeat sends course_id/module_id from current route → db.course_sessions; OTEC report shows days/minutes per course plus platform totals.
 - Weekly OTEC report email: cron Monday 08:00 America/Santiago → POST /api/cron/weekly-report; HTML tables per course sent to all active admins.
 - Module minimum time (min_minutes, default 0): db.module_sessions tracks time on module page; exam/complete blocked until reached; reset on failed exam.
+- Certificate approval flow: final pass → diploma status pendiente (code IBA-XXXX-XXXX) + email to active admins; admin approves in Diplomas → PDF (backend/certificate.py, pymupdf) stored in object storage, student email with motivational phrase + link to /verificar/{code} (email API has no attachments). Reject supported.
+- Default template = customer's ZIP landscape design adapted (scripts/build_default_certificate.py → backend/assets/default_certificate.png) with IberoAcademy logo, QR bottom-left, 3 signatures (Rector Maximiliano Alcafuz Orellana, Vicerrectora Liliana Hernández Guerrero, Directora Académica Karolyne González Possamai). Admin can upload own PNG/JPG/PDF template + adjust layout + preview.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
