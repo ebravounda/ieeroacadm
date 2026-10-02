@@ -16,7 +16,7 @@ from pydantic import BaseModel, EmailStr, Field
 from core import (db, client, now, now_iso, new_id, create_token, get_current_user, require_roles,
                   send_email, otp_email_html, analyze_ai_usage, EMAIL_FROM_NAME, init_storage, put_object,
                   get_object, to_nota, APP_NAME, grade_email_html, create_file_token, read_file_token,
-                  class_reminder_html)
+                  class_reminder_html, inactivity_email_html)
 import os
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -833,10 +833,19 @@ async def join_live(class_id: str, user=Depends(get_current_user)):
 
 @api.get("/live-classes/{class_id}/attendance")
 async def live_attendance(class_id: str, _=Depends(staff_only)):
-    rows = await db.live_attendance.find({"class_id": class_id}, {"_id": 0}).to_list(5000)
-    users = {u["id"]: u for u in await db.users.find({"id": {"$in": [r["user_id"] for r in rows]}}, {"_id": 0}).to_list(5000)}
-    return [{"student_name": f"{users.get(r['user_id'], {}).get('nombre', '')} {users.get(r['user_id'], {}).get('apellidos', '')}",
-             "email": users.get(r["user_id"], {}).get("email"), "joined_at": r["joined_at"]} for r in rows]
+    c = await db.live_classes.find_one({"id": class_id}, {"_id": 0})
+    if not c:
+        raise HTTPException(404, "Clase no encontrada")
+    joined = {r["user_id"]: r["joined_at"] for r in await db.live_attendance.find({"class_id": class_id}, {"_id": 0}).to_list(5000)}
+    enrolled = [e["user_id"] for e in await db.enrollments.find({"course_id": c["course_id"]}, {"user_id": 1}).to_list(5000)]
+    ids = list(dict.fromkeys(enrolled + list(joined)))
+    users = await db.users.find({"id": {"$in": ids}, "role": "estudiante"}, {"_id": 0}).to_list(5000)
+    rows = [{"student_name": f"{u['nombre']} {u['apellidos']}", "rut": u.get("rut", ""), "email": u["email"],
+             "present": u["id"] in joined, "joined_at": joined.get(u["id"])} for u in users]
+    rows.sort(key=lambda r: (not r["present"], r["student_name"].lower()))
+    course = await db.courses.find_one({"id": c["course_id"]}, {"_id": 0, "title": 1}) or {"title": ""}
+    return {"class": {**c, "course_title": course["title"], "status": class_status(c)}, "rows": rows,
+            "present": sum(r["present"] for r in rows), "total": len(rows)}
 
 
 # ---------------- Analytics ----------------
@@ -965,9 +974,45 @@ async def send_class_reminders():
             await asyncio.sleep(0.6)
 
 
-@api.post("/cron/class-reminders")
-async def cron_class_reminders(request: Request, bg: BackgroundTasks):
-    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+INACTIVE_DAYS = 7
+
+
+async def last_activity(u):
+    sess = await db.sessions.find({"user_id": u["id"]}, {"_id": 0, "last_seen": 1}).sort("last_seen", -1).to_list(1)
+    stamps = [x for x in (u.get("last_login"), sess[0]["last_seen"] if sess else None) if x]
+    return max(datetime.fromisoformat(x) for x in stamps) if stamps else None
+
+
+async def send_inactivity_alerts():
+    t = now()
+    limit = t - timedelta(days=INACTIVE_DAYS)
+    async for u in db.users.find({"role": "estudiante", "active": True}, {"_id": 0}):
+        alerted = u.get("inactivity_alert_at")
+        if alerted and datetime.fromisoformat(alerted) > limit:
+            continue
+        open_courses = await db.enrollments.find({"user_id": u["id"], "final_passed": False}, {"_id": 0}).to_list(100)
+        if not open_courses:
+            continue
+        last = await last_activity(u)
+        ref = last or min(datetime.fromisoformat(e["enrolled_at"]) for e in open_courses)
+        if ref > limit:
+            continue
+        progress = [p for p in await my_progress(user=u) if not p["final_passed"]]
+        if not progress:
+            continue
+        p = progress[0]
+        days = (t - ref).days
+        await db.users.update_one({"id": u["id"]}, {"$set": {"inactivity_alert_at": t.isoformat()}})
+        try:
+            await send_email(to=u["email"], subject=f"Te extrañamos en {EMAIL_FROM_NAME}: continúa tu curso",
+                             html=inactivity_email_html(u["nombre"], days, p["title"], p["progress"], p["next_step"]["text"]))
+        except Exception as ex:
+            logger.error(f"Inactivity email failed for {u['email']}: {ex}")
+        await asyncio.sleep(0.6)
+
+
+async def accept_cron(request: Request) -> bool:
+    """Validates cron auth; returns False for duplicate deliveries."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:], os.environ["WEBHOOK_CRON_SECRET"]):
         raise HTTPException(401, "Unauthorized")
@@ -979,9 +1024,26 @@ async def cron_class_reminders(request: Request, bg: BackgroundTasks):
             raise HTTPException(400, "Invalid body")
     if run_id:
         if await db.cron_runs.find_one({"run_id": run_id}):
-            return {"ok": True, "duplicate": True}
+            return False
         await db.cron_runs.insert_one({"run_id": run_id, "at": now_iso()})
+    return True
+
+
+@api.post("/cron/class-reminders")
+async def cron_class_reminders(request: Request, bg: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    if not await accept_cron(request):
+        return {"ok": True, "duplicate": True}
     bg.add_task(send_class_reminders)
+    return {"ok": True}
+
+
+@api.post("/cron/inactivity-alerts")
+async def cron_inactivity_alerts(request: Request, bg: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    if not await accept_cron(request):
+        return {"ok": True, "duplicate": True}
+    bg.add_task(send_inactivity_alerts)
     return {"ok": True}
 
 

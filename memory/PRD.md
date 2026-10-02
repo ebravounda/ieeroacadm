@@ -39,6 +39,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Email to student when teacher grades a development exam (nota 1–7, logro, comentario).
 - "Mi avance" student page (/mi-avance): per course module states, pending tasks, next step link (GET /api/my/progress).
 - Live class email reminders: platform cron every 15 min (.emergent/crons.yml → POST /api/cron/class-reminders, WEBHOOK_CRON_SECRET), sends once per class 0–40 min before start.
+- Live class attendance list per class (enrolled students Presente/Ausente, RUT, hora ingreso) + CSV export (GET /api/live-classes/{id}/attendance).
+- Inactivity alerts: daily cron 10:00 America/Santiago → POST /api/cron/inactivity-alerts; emails students with unfinished courses and no activity in 7 days (max 1 alert / 7 days, includes next step).
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

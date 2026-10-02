@@ -207,6 +207,20 @@ def class_reminder_html(name, title, course, hora, platform) -> str:
     )
 
 
+def inactivity_email_html(name, days, course, progress, next_step) -> str:
+    return (
+        '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#0f172a">'
+        f'<h2 style="margin:0 0 12px">{escape(EMAIL_FROM_NAME)}</h2>'
+        f'<p>Hola {escape(name)}, hace {days} días que no ingresas a la plataforma. ¡Tu curso te espera!</p>'
+        f'<p style="font-size:18px;font-weight:bold;margin:8px 0">{escape(course)}</p>'
+        f'<p>Llevas un <b>{progress}%</b> de avance.</p>'
+        f'<p style="background:#f0fdfa;border-left:4px solid #0d9488;padding:12px">Tu siguiente paso: <b>{escape(next_step)}</b></p>'
+        '<p>Ingresa a la plataforma y revisa la sección “Mi avance” para continuar donde quedaste. ¡Tú puedes!</p>'
+        f'<p style="font-size:12px;color:#888">Enviado por {escape(EMAIL_FROM_NAME)}.</p>'
+        '</td></tr></table>'
+    )
+
+
 def grade_email_html(name, course, exam, nota, score, passed, feedback) -> str:
     nota_txt = f"{nota:.1f}".replace(".", ",")
     color = "#059669" if passed else "#e11d48"

@@ -6,3 +6,11 @@ crons:
     endpoint: "{{BASE_URL}}/api/cron/class-reminders"
     method: POST
     enabled: true
+  - name: inactivity-alerts
+    description: "Correo diario 10:00 Chile a estudiantes sin ingresar hace 7 días, animándolos a continuar"
+    cron: "0 10 * * *"
+    timezone: "America/Santiago"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/inactivity-alerts"
+    method: POST
+    enabled: true

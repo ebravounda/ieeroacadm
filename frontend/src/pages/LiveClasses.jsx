@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Video, Trash2, ExternalLink, Users } from "lucide-react";
+import { Plus, Video, Trash2, ExternalLink, Users, ClipboardList, Download } from "lucide-react";
 import { api, errMsg, fmtDate } from "@/lib/api";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { PageHeader, Empty } from "@/components/Common";
@@ -60,6 +60,53 @@ function NewClassDialog({ onDone }) {
   );
 }
 
+function exportAttendance(data) {
+  const c = data.class;
+  const head = ["Curso", "Clase", "Plataforma", "Fecha inicio", "Estudiante", "RUT", "Correo", "Asistencia", "Hora de ingreso"];
+  const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const lines = data.rows.map((r) => [c.course_title, c.title, c.platform === "teams" ? "Teams" : "Meet", fmtDate(c.start_at), r.student_name, r.rut, r.email, r.present ? "Presente" : "Ausente", r.joined_at ? fmtDate(r.joined_at) : ""].map(esc).join(";"));
+  const blob = new Blob(["\ufeff" + [head.map(esc).join(";"), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `asistencia_${c.title.replace(/\W+/g, "_")}_${c.start_at.slice(0, 10)}.csv`;
+  a.click();
+}
+
+function AttendanceDialog({ classId }) {
+  const [data, setData] = useState(null);
+  const load = (open) => open && api.get(`/live-classes/${classId}/attendance`).then((r) => setData(r.data)).catch((e) => toast.error(errMsg(e)));
+  return (
+    <Dialog onOpenChange={load}>
+      <DialogTrigger asChild><Button variant="outline" data-testid={`live-class-attendance-${classId}`}><ClipboardList size={16} className="mr-2" /> Asistencia</Button></DialogTrigger>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Lista de asistencia</DialogTitle></DialogHeader>
+        {!data ? <p className="text-slate-500 text-sm">Cargando…</p> : (
+          <div data-testid="attendance-dialog">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div><p className="font-semibold">{data.class.title}</p><p className="text-xs text-slate-500">{data.class.course_title} · {fmtDate(data.class.start_at)}</p></div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-mono" data-testid="attendance-summary">{data.present}/{data.total} presentes</span>
+                <Button size="sm" onClick={() => exportAttendance(data)} disabled={!data.rows.length} data-testid="attendance-export-csv"><Download size={14} className="mr-1" /> Descargar CSV</Button>
+              </div>
+            </div>
+            {data.rows.length === 0 ? <p className="text-sm text-slate-500">No hay estudiantes matriculados en este curso.</p> : (
+              <div className="border rounded-lg divide-y">
+                {data.rows.map((r) => (
+                  <div key={r.email} className="flex items-center gap-3 px-4 py-2.5 text-sm" data-testid="attendance-row">
+                    <div className="flex-1 min-w-0"><p className="font-medium truncate">{r.student_name}</p><p className="text-xs text-slate-500 truncate">{r.rut ? `${r.rut} · ` : ""}{r.email}</p></div>
+                    <span className="text-xs text-slate-500">{r.joined_at ? new Date(r.joined_at).toLocaleTimeString("es-CL", { timeStyle: "short" }) : ""}</span>
+                    <span className={`text-xs rounded-full px-2 py-0.5 font-semibold ${r.present ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{r.present ? "Presente" : "Ausente"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ClassCard({ c, staff, onChange }) {
   const st = STATUS[c.status];
   const join = () => api.post(`/live-classes/${c.id}/join`).then((r) => window.open(r.data.url, "_blank", "noopener")).catch((e) => toast.error(errMsg(e)));
@@ -82,6 +129,7 @@ function ClassCard({ c, staff, onChange }) {
           <ExternalLink size={16} className="mr-2" /> Abrir clase
         </Button>
       )}
+      {staff && <AttendanceDialog classId={c.id} />}
       {staff && <Button size="icon" variant="ghost" onClick={del} data-testid={`live-class-delete-${c.id}`}><Trash2 size={16} /></Button>}
     </div>
   );
