@@ -1,0 +1,23 @@
+{
+  "summary": "Tested admin Integrations panel end-to-end: backend GET/PUT /api/admin/integrations (admin-only), Resend key save (hint ••••1234, never full key), empty-key preserves existing, clear removes, mail_from validation (400 without @), test-email with Emergent fallback (ok), OpenAI save+hint, test-ai with fake key -> 502 clean error, test-ai with no key -> Emergent fallback ok, cron lines contain /api/cron/, cron 401 without auth, cron 2xx with env WEBHOOK_CRON_SECRET. Frontend verified: /integraciones renders integrations-page with 4 cards (email/ai/payments/cron) with status badges, cron-line-0..2 contain /api/cron/, embedded Flow settings (website-flow-settings/flow-api-key/flow-secret-key/flow-settings-save) present inside Integrations, Sitio web no longer shows Flow card, sidebar entry 'Integraciones' present. All data cleaned up at the end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_integrations.py",
+    "/app/test_reports/pytest/iteration8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "integrations.py put_integrations: `v.strip()` is called on model_dump values that may be non-strings in future schema evolution; currently all Optional[str] so OK. Empty-string on non-secret fields (mail_from, email_from_name, openai_model) is skipped by the `(v.strip() or k not in SECRET_FIELDS)` condition — meaning admins cannot blank out mail_from via the UI once set (would need to add it to `clear` or trim to empty). Minor UX; not blocking.",
+    "integrations.py _view: `cron.lines` is only populated when cron_secret exists (good), but the frontend CronCard still maps `v.lines` unconditionally — currently safe since backend ensures the field exists."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_integrations.py"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% (smoke)"},
+  "test_credentials": "admin ed0.2580@gmail.com (passwordless, OTP from db.otp_codes)",
+  "seed_data_creation": "Created TEST student delivered+testintg@resend.dev (deleted during cleanup).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "db.settings.id='integrations' did NOT exist before iteration 8; after cleanup it is removed again. db.settings.id='payments' retains only {flow_env:'sandbox'} (no fake keys)."
+}

@@ -76,10 +76,12 @@ Probar una a mano:
 curl -X POST https://iberoacademy.cl/api/cron/class-reminders -H "Authorization: Bearer TU_SECRETO" -H "Content-Type: application/json" -d '{}'
 ```
 
+> **Nuevo:** las claves de Resend, OpenAI, Flow y el secreto del Cron también se pueden configurar desde el panel admin → **Integraciones** (tienen prioridad sobre el .env). Para el primer ingreso sí necesitas Resend en el .env (o configúralo apenas entres), porque el código de acceso llega por correo.
+
 ## 8. Primer ingreso
 1. Entra a https://iberoacademy.cl/login con el correo de `ADMIN_EMAIL` → te llegará el código por correo (Resend).
 2. **Configuración**: sube las 3 firmas y revisa la plantilla del diploma.
-3. **Sitio web**: ingresa tus claves de Flow (primero *sandbox* para probar, luego *producción*).
+3. **Integraciones**: revisa Resend (envía un correo de prueba), OpenAI (Probar conexión), ingresa tus claves de Flow (primero *sandbox*, luego *producción*) y copia las 3 líneas del Cron en aaPanel.
 4. Crea tus cursos, márcalos como publicados y "mostrar en landing".
 
 ## 9. Respaldos (recomendado)
