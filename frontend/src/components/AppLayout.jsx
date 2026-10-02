@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, CreditCard, Globe, Plug } from "lucide-react";
+import { ListChecks, LayoutDashboard, Users, BookOpen, ClipboardCheck, BarChart3, Video, Settings, Award, LogOut, Menu, CreditCard, Globe, Plug, Send } from "lucide-react";
 import { useAuth, isStaff } from "@/context/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/diplomas", label: "Diplomas", icon: Award, roles: ["admin", "docente", "estudiante"] },
   { to: "/pagos", label: "Pagos", icon: CreditCard, roles: ["admin", "docente"] },
   { to: "/sitio-web", label: "Sitio web", icon: Globe, roles: ["admin"] },
+  { to: "/mensajes", label: "Mensajes masivos", icon: Send, roles: ["admin"] },
   { to: "/integraciones", label: "Integraciones", icon: Plug, roles: ["admin"] },
   { to: "/configuracion", label: "Configuración", icon: Settings, roles: ["admin"] },
 ];

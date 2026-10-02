@@ -1517,9 +1517,11 @@ async def root():
 
 from shop import router as shop_router  # noqa: E402
 from integrations import router as integrations_router  # noqa: E402
+from messaging import router as messaging_router  # noqa: E402
 
 api.include_router(shop_router)
 api.include_router(integrations_router)
+api.include_router(messaging_router)
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True,
                    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),

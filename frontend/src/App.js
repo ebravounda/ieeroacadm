@@ -24,6 +24,7 @@ import Payments from "@/pages/Payments";
 import WebsiteAdmin from "@/pages/WebsiteAdmin";
 import Legal from "@/pages/Legal";
 import Integrations from "@/pages/Integrations";
+import Messages from "@/pages/Messages";
 
 function Home() {
   const { user } = useAuth();
@@ -56,6 +57,7 @@ function App() {
           <Route path="/privacidad" element={<Legal doc="privacidad" />} />
           <Route path="/pago/resultado" element={<PaymentResult />} />
           <Route path="/pagos" element={<Protected staff><Payments /></Protected>} />
+          <Route path="/mensajes" element={<Protected admin><Messages /></Protected>} />
           <Route path="/integraciones" element={<Protected admin><Integrations /></Protected>} />
           <Route path="/sitio-web" element={<Protected admin><WebsiteAdmin /></Protected>} />
           <Route path="/estudiantes" element={<Protected staff><Students /></Protected>} />
