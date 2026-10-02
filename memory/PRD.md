@@ -50,6 +50,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Default template = customer's ZIP landscape design adapted (scripts/build_default_certificate.py → backend/assets/default_certificate.png) with IberoAcademy logo, QR bottom-left, 3 signatures (Rector Maximiliano Alcafuz Orellana, Vicerrectora Liliana Hernández Guerrero, Directora Académica Karolyne González Possamai). Admin can upload own PNG/JPG/PDF template + adjust layout + preview.
 - IberoAcademy logo (frontend/public/logo.png) in sidebar, mobile header, login and all emails (core._brand uses PUBLIC_BASE remembered from last login host in db.app_meta).
 - Bulk certificate approval: POST /api/diplomas/approve-bulk {ids}; checkboxes + "Aprobar seleccionados" in Diplomas → Solicitudes.
+- Brand colors: tailwind `teal` scale remapped to IberoAcademy navy (#11305C) with yellow (#FBAD17) at 300/400; CSS vars primary navy, ring yellow; sidebar #0A2449; emails navy.
+- Pending: customer must upload the 3 signature PNGs in Configuración.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

@@ -32,8 +32,8 @@ function StaffDashboard() {
                 <XAxis dataKey="date" fontSize={12} />
                 <YAxis fontSize={12} allowDecimals={false} />
                 <Tooltip />
-                <Area type="monotone" dataKey="activos" name="Estudiantes activos" stroke="#0D9488" fill="#CCFBF1" />
-                <Area type="monotone" dataKey="minutos" name="Minutos totales" stroke="#4F46E5" fill="#EEF2FF" />
+                <Area type="monotone" dataKey="activos" name="Estudiantes activos" stroke="#11305C" fill="#DCE4F0" />
+                <Area type="monotone" dataKey="minutos" name="Minutos totales" stroke="#FBAD17" fill="#FFF3D6" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
