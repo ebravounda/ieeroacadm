@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/Common";
 import QuizBuilder from "@/components/QuizBuilder";
 import { SectionsEditor } from "@/components/Materials";
+import { ImportModulesDialog } from "@/components/ImportModules";
 import CourseReport from "@/components/CourseReport";
 import { CourseForm } from "@/pages/Courses";
 import { Button } from "@/components/ui/button";
@@ -72,7 +73,10 @@ function ModulesTab({ course, reload }) {
           <Button size="icon" variant="ghost" onClick={() => del(m.id)} data-testid={`delete-module-${i}`}><Trash2 size={16} /></Button>
         </div>
       ))}
-      <Button onClick={() => setEditing("new")} data-testid="add-module-button"><Plus size={16} className="mr-2" /> Agregar módulo</Button>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => setEditing("new")} data-testid="add-module-button"><Plus size={16} className="mr-2" /> Agregar módulo</Button>
+        <ImportModulesDialog courseId={course.id} onDone={reload} />
+      </div>
       <ModuleDialog open={!!editing} initial={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSave={save} />
     </div>
   );

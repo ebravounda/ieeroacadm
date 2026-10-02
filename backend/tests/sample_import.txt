@@ -1,0 +1,42 @@
+HERRAMIENTAS DIGITALES E INTELIGENCIA ARTIFICIAL PARA LA GESTIÓN ADMINISTRATIVA
+Duración: 32 horas
+Modalidad: E-learning / Presencial / Mixta
+MÓDULO 1
+Competencias digitales y organización del entorno de trabajo
+Objetivo del módulo
+Utilizar correctamente las herramientas básicas del computador.
+Lección 1. El computador como herramienta de trabajo
+Un computador está compuesto por dos elementos principales:
+Hardware: corresponde a los componentes físicos del equipo.
+Lección 2. Entorno de Windows
+El sistema operativo permite interactuar con el computador.
+Actividad práctica
+Crear la siguiente estructura:
+EMPRESA DEMO
+Material audiovisual
+Curso Windows 11 desde cero – Explorador de archivos
+https://www.youtube.com/watch?v=dQw4w9WgXcQ
+Evaluación módulo 1
+¿Cuál es la diferencia entre hardware y software?
+Respuesta correcta: C.
+MÓDULO 2
+Microsoft Word aplicado al trabajo administrativo
+Objetivo
+Crear documentos administrativos profesionales.
+Lección 1. Introducción a Word
+Microsoft Word es un procesador de texto.
+Recursos
+Curso y guía oficial de Microsoft Word
+Evaluación
+El participante deberá crear un documento administrativo.
+MÓDULO 9
+Evaluación práctica final
+El participante deberá resolver un caso completo.
+Tarea 1 — Organización
+Crear carpetas.
+Tarea 2 — Word
+Crear una carta.
+EVALUACIÓN DEL CURSO
+Evaluaciones por módulo: 40 %
+CERTIFICACIÓN
+El participante que cumpla...
