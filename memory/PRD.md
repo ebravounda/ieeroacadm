@@ -52,6 +52,9 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - Bulk certificate approval: POST /api/diplomas/approve-bulk {ids}; checkboxes + "Aprobar seleccionados" in Diplomas → Solicitudes.
 - Brand colors: tailwind `teal` scale remapped to IberoAcademy navy (#11305C) with yellow (#FBAD17) at 300/400; CSS vars primary navy, ring yellow; sidebar #0A2449; emails navy.
 - Pending: customer must upload the 3 signature PNGs in Configuración.
+- Public landing at / (logged-out): hero slider (admin-managed slides, 3 default images in public/landing), benefits/CV section, courses grid (published + show_on_landing; price, summary, image, modality), FAQ, enrollment dialog.
+- Flow.cl payments (backend/shop.py): credentials stored in db.settings id=payments via admin "Sitio web" page (secret masked); checkout → Flow payment/create → redirect; confirm webhook + return URL call getStatus; status 2 → enroll + email. Admin "Pagos": list/filter, send payment link email, copy link, refresh, mark paid manually. Free courses enroll instantly.
+- Flow NOT verified with real keys (customer hasn't provided sandbox keys yet).
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.

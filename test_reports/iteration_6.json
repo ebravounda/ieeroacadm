@@ -1,0 +1,30 @@
+{
+  "summary": "End-to-end testing of new Landing + Flow Payments features (shop.py). Backend: 14/14 pytest cases passed (public landing, free checkout w/ auto-enroll, paid checkout w/ fake Flow keys returns 400 and no orphan pending payment, missing Flow config returns 503, flow/confirm returns 200 on unknown token, flow/return 303 redirects to /pago/resultado?orden=, HMAC-SHA256 signature matches spec, admin landing GET/PUT, admin payment-settings masks secret_key (returns secret_hint='••••xxxx'), payments list, mark-paid enrolls student + marks pagado, send-link errors with fake keys + no orphan). Frontend: Landing renders with hero slider (3 default slides when none configured), landing-slide-next/prev/dot-N testids present, 2 published courses on landing (test-c1 $49.900 and test-c2 Gratis), FAQ accordion visible, mobile 390px renders. Free enrollment dialog -> submit redirects to /pago/resultado?orden=<id> with payment-result-status '¡Inscripción confirmada!'. Paid enrollment with fake Flow keys shows toast 'Flow rechazó la solicitud. Revisa las credenciales en Sitio web y pagos.' and no orphan pending payment is created. Logged-in admin visiting / is redirected to dashboard (not landing). /pagos admin page lists completed payments with stats cards and search; /sitio-web shows Flow env toggles (flow-env-sandbox/production) and website-slide-add button that reveals website-slide-image-0 upload field.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Enroll dialog", "issues": ["DialogContent missing aria-describedby (accessibility warning in console, non-blocking)"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_landing_payments.py",
+    "/app/test_reports/pytest/landing_payments.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "shop.py imports from server which also imports shop (shop_router) -> circular import; works in prod because server.py imports shop at module bottom but means shop.py cannot be imported standalone before server has initialized. Consider moving admin_only/staff_only/create_user/enroll/app_base into a shared deps module.",
+    "flow_return endpoint catches HTTPException silently; consider logging the failure for observability.",
+    "public_image query: `used = any(...) or await db.courses.find_one(...)` - if the `any(...)` is truthy it skips the DB check (correct), but the ordering means every unused file_id triggers a DB query (acceptable but could be rate-limited for abuse).",
+    "In mark-paid, if grant_access succeeds and send_email fails, status is already updated (correct); but if admin re-clicks it is idempotent (grant_access checks pay.enrolled).",
+    "Add aria-describedby/DialogDescription to the landing enroll dialog to clear console accessibility warning."
+  ],
+  "updated_files": ["/app/backend/tests/test_landing_payments.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Admin test-admin-1 via JWT: cd /app/backend && python3 -c \"from core import create_token;print(create_token('test-admin-1'))\" -> localStorage 'otec_token'. Seeded courses: test-c1 (paid 49900), test-c2 (free). Fake Flow keys FAKE-KEY/fakesecret123.",
+  "seed_data_creation": "Tests create and clean up their own TEST_ users/payments/enrollments. Cleaned up delivered+pwfree@resend.dev and delivered+pwpaid@resend.dev after Playwright run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All new landing/payments endpoints verified working. Flow real-key checkout cannot be tested until user supplies real sandbox credentials. If retesting, note that admin landing GET/PUT and website-slide-image-* testids only appear after clicking data-testid='website-slide-add'."
+}

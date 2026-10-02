@@ -97,7 +97,7 @@ function EnrollDialog({ course, onClose }) {
   };
   return (
     <Dialog open={!!course} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent aria-describedby={undefined}>
         <DialogHeader><DialogTitle>Inscripción: {course?.title}</DialogTitle></DialogHeader>
         <form onSubmit={submit} className="grid grid-cols-2 gap-3" data-testid="landing-enroll-form">
           <div><Label>Nombres</Label><Input required value={f.nombre} onChange={set("nombre")} data-testid="enroll-nombre" /></div>
