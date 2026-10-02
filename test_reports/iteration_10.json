@@ -1,0 +1,27 @@
+{
+  "summary": "Full-stack testing of admin mass messaging feature (/mensajes). Backend: 12/12 pytest in test_messaging.py passed covering admin-only guards (anonymous & student get 401/403), seed-once of 4 default templates (deleting 'Aviso general' does NOT re-seed), template CRUD, preview with variable substitution + markdown links rendered as <a> + HTML in body escaped (<script> -> &lt;script&gt;), audience counts for students/all/course/inactive, POST /admin/messages/test to delivered@resend.dev, and a full campaign send on a dedicated TEST course containing only 2 delivered+msgtest@resend.dev students -- campaign went status 'enviando' -> 'completado' with sent=2 failed=0 within ~2s. Empty-course audience returns 400. Frontend: logged in as admin via OTP (token injected into localStorage), navigated to /mensajes, verified sidebar 'Mensajes masivos' link, templates-list shows 4 seeded templates with correct names, template-item click loads editor, insert-var-nombre inserts {nombre}, new template saved appears in list, audience=course + course picker displays correct count=2 in preview iframe with variables substituted (UI0/UI1, 'TEST UI Msgs Course') and body rendered, audience=inactive shows audience-days input, message-test sends to delivered@resend.dev successfully, campaigns-history section renders, template-delete removes template. No console errors other than one expected pre-auth 401 for /auth/me before token injection. All TEST data cleaned up (templates, campaigns, course, users, enrollments). 4 default templates intact post-run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_messaging.py",
+    "/app/test_reports/pytest/iteration10.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "messaging.recipients() for 'all' audience fetches ALL active users then does per-user find_one on enrollments to resolve latest course — O(N) extra queries that could slow large sends. Consider aggregating or batching via $lookup/precomputed last-enrollment map.",
+    "messaging.run_campaign has fire-and-forget asyncio.create_task; if the backend restarts mid-send, in-flight campaigns remain stuck in 'enviando' with no resume logic. Minor; acceptable for current scale.",
+    "0.6s sleep per recipient is sequential and will take ~10 min per 1000 recipients. Fine for now but a batched async send (e.g. gather in chunks) would scale better.",
+    "No audit of who was emailed per campaign (only aggregate sent/failed counts). Consider storing a per-recipient delivery log for troubleshooting.",
+    "render_body escapes HTML correctly and markdown links use style color #11305c inline — good. But generic auto-URL regex can mis-match trailing punctuation; low priority.",
+    "Preview endpoint uses first user as sample; if 'all' audience lists non-estudiante users first, sample {curso} may be empty — this is handled by vars_for fallback to 'tu curso'. OK."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_messaging.py"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (all critical flows)"},
+  "test_credentials": "admin info@iberoacademy.cl (passwordless OTP from db.otp_codes).",
+  "seed_data_creation": "Transient: 1 TEST course (TEST Mensajes Course for backend + TEST UI Msgs Course for frontend), 4 TEST users (delivered+msgtest/uitest@resend.dev), their enrollments, and transient TEST templates/campaigns -- all deleted. 4 default templates and app_meta 'templates_seeded' doc intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Admin mass messaging feature (backend/messaging.py + frontend/src/pages/Messages.jsx) is fully working. 4 default templates are seeded once (gated by app_meta 'templates_seeded'). Routes: GET/POST/PUT/DELETE /api/admin/templates; POST /api/admin/messages/{preview,test,send}; GET /api/admin/messages/campaigns. Campaign send sleeps 0.6s per recipient. Only admin role has access. For tests, always use audience=course with a dedicated TEST course + delivered+@resend.dev users -- never audience=all/students in preview DB (contains real admin ed0.2580@gmail.com)."
+}

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /pagos
+Disallow: /estudiantes
+Disallow: /configuracion
+Disallow: /integraciones
+Disallow: /mensajes
+Disallow: /sitio-web
+
+Sitemap: https://iberoacademy.cl/sitemap.xml

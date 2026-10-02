@@ -64,6 +64,8 @@ User choices: login con código al email; IA con Claude; Teams/Meet por enlace c
 - 2026-10-02: Self-host pip fix: backend/requirements-server.txt (no emergentintegrations/litellm/dev tools) — installs on clean venv without extra index; server boots; AI without OpenAI key fails gracefully. Customer server: Ubuntu 24.04 aarch64, app at /www/wwwroot/iberoacademy, Mongo in Docker iberoacademy-mongo 127.0.0.1:27022, backend pm2 port 8001. Repo github.com/ebravounda/ieeroacadm (public).
 - 2026-10-02: ADMIN_EMAIL = info@iberoacademy.cl (preview .env + instalar.sh; MAIL_FROM info@iberoacademy.cl). Welcome email on every NEW enrollment (server.py send_welcome via asyncio.create_task, core.welcome_email_html): credentials (email + code login), meticulous study, module exams, min time, tracking of logins/time, final exam/certificate. Customer Resend key validated sending from info@iberoacademy.cl (key restricted to sending). Key NOT stored in repo (repo is public) — set on server .env. Tested iteration_9: 100%.
 - 2026-10-02: LIVE on customer server https://iberoacademy.cl (verified externally: landing, login, /api). instalar.sh ran OK.
+- 2026-10-02: Mass messaging (/mensajes, backend/messaging.py): templates CRUD with 4 seeded defaults, variables, [texto](url) links, audiences, preview/test/send background, history. Tested iteration_10 100%.
+- 2026-10-02: SEO/social: index.html lang es-CL, title/description/keywords, canonical, geo, OG + Twitter (og-image.jpg 1200x630 generated), JSON-LD EducationalOrganization+WebSite, favicons/manifest, robots.txt, sitemap.xml, noscript content. New definitive Resend key provided by customer (validated) — set only on server .env/Integraciones, never in repo.
 
 ## Backlog
 - P1: Per-teacher course ownership restrictions.
